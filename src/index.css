@@ -1,0 +1,51 @@
+:root {
+  --matrix-bg: #020403;
+  --matrix-bright: #63ff63;
+  --matrix-mid: #36d936;
+  --matrix-dim: #1f7f1f;
+  --matrix-faint: rgba(68, 255, 68, 0.16);
+  --shell-max-width: 1440px;
+  --font-mono:
+    "JetBrains Mono", "IBM Plex Mono", "Fira Code", "Courier New", monospace;
+
+  color: var(--matrix-bright);
+  background: var(--matrix-bg);
+  font-family: var(--font-mono);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at center, rgba(0, 60, 0, 0.16), transparent 48%),
+    #020403;
+}
+
+body,
+button,
+textarea {
+  font-family: var(--font-mono);
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(99, 255, 99, 0.25);
+  color: #e7ffe7;
+}
