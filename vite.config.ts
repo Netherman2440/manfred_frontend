@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_API_PROXY_TARGET
 
   return {
+    envPrefix: ['VITE_', 'API_'],
     plugins: [react()],
     server: proxyTarget
       ? {

@@ -1,4 +1,4 @@
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '')
+const apiBaseUrl = (import.meta.env.API_BASE_URL ?? '').replace(/\/+$/, '')
 
 export const chatEndpointPath = '/api/v1/chat'
 export const chatEndpointLabel = apiBaseUrl

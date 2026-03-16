@@ -47,7 +47,7 @@ npm run dev
 Frontend wysyla requesty na:
 
 - `/api/v1/chat` przy same-origin lub z proxy
-- `${VITE_API_BASE_URL}/api/v1/chat`, jesli ustawisz `VITE_API_BASE_URL`
+- `${API_BASE_URL}/api/v1/chat`, jesli ustawisz `API_BASE_URL`
 
 ## Build
 
