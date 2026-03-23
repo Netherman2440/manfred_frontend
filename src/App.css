@@ -467,6 +467,16 @@
   padding: 14px 16px;
   border: 1px solid rgba(68, 255, 68, 0.24);
   background: rgba(0, 0, 0, 0.5);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.composer-shell--drag-active {
+  border-color: rgba(68, 255, 68, 0.78);
+  background: rgba(6, 32, 6, 0.72);
+  box-shadow: 0 0 0 1px rgba(68, 255, 68, 0.22), 0 0 24px rgba(68, 255, 68, 0.18);
 }
 
 .composer-prompt {
@@ -490,6 +500,14 @@
 
 .composer-textarea::placeholder {
   color: rgba(68, 255, 68, 0.3);
+}
+
+.composer-drop-hint {
+  margin: 8px 2px 0;
+  color: rgba(68, 255, 68, 0.56);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .composer-actions {

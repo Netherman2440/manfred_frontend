@@ -1,4 +1,12 @@
-import type { ChangeEvent, FormEvent, KeyboardEvent, RefObject } from 'react'
+import { useRef, useState } from 'react'
+import type {
+  ChangeEvent,
+  ClipboardEvent,
+  DragEvent,
+  FormEvent,
+  KeyboardEvent,
+  RefObject,
+} from 'react'
 import AttachmentList from './AttachmentList'
 import type { PendingAttachment } from '../types/chat'
 
@@ -20,7 +28,7 @@ interface ChatComposerProps {
   pendingAttachments: PendingAttachment[]
   fileInputRef: RefObject<HTMLInputElement | null>
   onAbort: () => void
-  onAttachFiles: (event: ChangeEvent<HTMLInputElement>) => void
+  onAttachFiles: (files: Iterable<File> | null) => void
   onChangeDraft: (value: string) => void
   onSend: () => void
   onRemoveAttachment: (localId: string) => void
@@ -47,16 +55,96 @@ const ChatComposer = ({
   onStopRecording,
   onCancelRecording,
 }: ChatComposerProps) => {
+  const [isDragActive, setIsDragActive] = useState(false)
+  const dragDepthRef = useRef(0)
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     onSend()
   }
+
+  const isFileTransfer = (dataTransfer: DataTransfer | null) =>
+    Array.from(dataTransfer?.types ?? []).includes('Files')
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       onSend()
     }
+  }
+
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (isSending || isRecording) {
+      return
+    }
+
+    const clipboardFiles =
+      event.clipboardData.files.length > 0
+        ? Array.from(event.clipboardData.files)
+        : Array.from(event.clipboardData.items)
+            .filter((item) => item.kind === 'file')
+            .map((item) => item.getAsFile())
+            .filter((file): file is File => file !== null)
+
+    if (clipboardFiles.length === 0) {
+      return
+    }
+
+    event.preventDefault()
+    onAttachFiles(clipboardFiles)
+  }
+
+  const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    onAttachFiles(event.target.files)
+    event.target.value = ''
+  }
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (isSending || isRecording || !isFileTransfer(event.dataTransfer)) {
+      return
+    }
+
+    event.preventDefault()
+    dragDepthRef.current += 1
+    setIsDragActive(true)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (isSending || isRecording || !isFileTransfer(event.dataTransfer)) {
+      return
+    }
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!isFileTransfer(event.dataTransfer)) {
+      return
+    }
+
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+
+    if (dragDepthRef.current === 0) {
+      setIsDragActive(false)
+    }
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!isFileTransfer(event.dataTransfer)) {
+      return
+    }
+
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setIsDragActive(false)
+
+    if (isSending || isRecording) {
+      return
+    }
+
+    onAttachFiles(Array.from(event.dataTransfer.files))
   }
 
   return (
@@ -71,7 +159,7 @@ const ChatComposer = ({
         id="chat-attachments"
         type="file"
         multiple
-        onChange={onAttachFiles}
+        onChange={handleFileInputChange}
       />
 
       <AttachmentList
@@ -95,7 +183,13 @@ const ChatComposer = ({
         </div>
       ) : null}
 
-      <div className="composer-shell">
+      <div
+        className={`composer-shell ${isDragActive ? 'composer-shell--drag-active' : ''}`}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <span className="composer-prompt" aria-hidden="true">
           &gt;
         </span>
@@ -108,8 +202,11 @@ const ChatComposer = ({
           placeholder="write command..."
           onChange={(event) => onChangeDraft(event.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
         />
       </div>
+
+      <p className="composer-drop-hint">paste files from clipboard or drop them into the message box</p>
 
       <div className="composer-actions">
         <div className="composer-actions__buttons composer-actions__buttons--utility">

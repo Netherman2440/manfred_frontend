@@ -195,7 +195,7 @@ interface ChatPageProps {
   sessionId: string | null
   onBack: () => void
   onChangeDraft: (value: string) => void
-  onAttachFiles: (files: FileList | null) => void
+  onAttachFiles: (files: Iterable<File> | null) => void
   onRemoveAttachment: (localId: string) => void
   onResetSession: () => void
   onSend: () => Promise<void>
@@ -340,10 +340,7 @@ const ChatPage = ({
           pendingAttachments={pendingAttachments}
           fileInputRef={fileInputRef}
           onAbort={onAbort}
-          onAttachFiles={(event) => {
-            onAttachFiles(event.target.files)
-            event.target.value = ''
-          }}
+          onAttachFiles={onAttachFiles}
           onChangeDraft={onChangeDraft}
           onSend={() => {
             if (canSend) {
@@ -525,13 +522,33 @@ function App() {
       })
   }
 
-  const handleAttachFiles = (files: FileList | null) => {
-    if (!files || files.length === 0) {
+  const normalizeUploadFile = (file: File) => {
+    if (file.name) {
+      return file
+    }
+
+    const mimeSubtype = file.type.split('/')[1]
+    const extension = mimeSubtype ? `.${mimeSubtype.split('+')[0]}` : ''
+
+    return new File([file], `clipboard-${Date.now()}${extension}`, {
+      type: file.type || 'application/octet-stream',
+      lastModified: file.lastModified || Date.now(),
+    })
+  }
+
+  const handleAttachFiles = (files: Iterable<File> | null) => {
+    if (!files) {
+      return
+    }
+
+    const nextFiles = Array.from(files).map((file) => normalizeUploadFile(file))
+
+    if (nextFiles.length === 0) {
       return
     }
 
     setError(null)
-    Array.from(files).forEach((file) => {
+    nextFiles.forEach((file) => {
       queueAttachmentUpload(file, 'file')
     })
   }
