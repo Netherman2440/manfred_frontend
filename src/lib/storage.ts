@@ -3,11 +3,9 @@ import type { ChatMessage } from '../types/chat'
 const storageKey = 'manfred-chat-state'
 
 interface StoredChatState {
-  threadId: string
+  sessionId: string | null
   messages: ChatMessage[]
 }
-
-export const createThreadId = () => crypto.randomUUID()
 
 export const loadStoredChatState = (): StoredChatState | null => {
   try {
@@ -20,7 +18,8 @@ export const loadStoredChatState = (): StoredChatState | null => {
     const parsedValue = JSON.parse(rawValue) as StoredChatState
 
     if (
-      typeof parsedValue.threadId !== 'string' ||
+      !('sessionId' in parsedValue) ||
+      (parsedValue.sessionId !== null && typeof parsedValue.sessionId !== 'string') ||
       !Array.isArray(parsedValue.messages)
     ) {
       return null

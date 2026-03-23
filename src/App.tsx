@@ -1,14 +1,21 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import './App.css'
-import { chatEndpointLabel, ChatApiError, sendChatMessage } from './lib/chat-api'
+import {
+  ChatApiError,
+  chatAttachmentsEndpointLabel,
+  chatCompletionsEndpointLabel,
+  sendChatCompletion,
+  uploadAttachments,
+} from './lib/chat-api'
 import {
   clearStoredChatState,
-  createThreadId,
   loadStoredChatState,
   saveStoredChatState,
 } from './lib/storage'
-import type { ChatMessage } from './types/chat'
+import type { ChatAttachment, ChatMessage, PendingAttachment } from './types/chat'
 import MatrixRain from './components/MatrixRain'
+import ChatComposer from './components/ChatComposer'
+import { useVoiceRecorder } from './hooks/useVoiceRecorder'
 
 const AssistantMarkdown = lazy(() => import('./components/AssistantMarkdown'))
 
@@ -29,18 +36,96 @@ const formatTime = (value: string) =>
     second: '2-digit',
   }).format(new Date(value))
 
+const formatAttachmentSize = (sizeBytes: number) => {
+  if (sizeBytes >= 1024 * 1024) {
+    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  if (sizeBytes >= 1024) {
+    return `${Math.round(sizeBytes / 1024)} KB`
+  }
+
+  return `${sizeBytes} B`
+}
+
+const inferAttachmentKind = (mimeType: string) => {
+  if (mimeType.startsWith('image/')) {
+    return 'image'
+  }
+
+  if (mimeType.startsWith('audio/')) {
+    return 'audio'
+  }
+
+  if (
+    mimeType === 'application/pdf' ||
+    mimeType.startsWith('text/') ||
+    mimeType.includes('document') ||
+    mimeType.includes('sheet') ||
+    mimeType.includes('presentation')
+  ) {
+    return 'document'
+  }
+
+  return 'other'
+}
+
 const createMessage = (
   role: ChatMessage['role'],
   content: string,
+  attachments?: ChatAttachment[],
 ): ChatMessage => ({
   id: crypto.randomUUID(),
   role,
   content,
   createdAt: new Date().toISOString(),
+  attachments: attachments && attachments.length > 0 ? attachments : undefined,
 })
 
 const randomGlyph = () =>
   scrambleGlyphs[Math.floor(Math.random() * scrambleGlyphs.length)]
+
+const attachmentStatusLabel = (attachment: ChatAttachment) => {
+  if (attachment.kind !== 'audio' || !attachment.transcription) {
+    return null
+  }
+
+  if (attachment.transcription.status === 'pending') {
+    return 'transcribing'
+  }
+
+  if (attachment.transcription.status === 'failed') {
+    return 'transcription failed'
+  }
+
+  return 'transcription ready'
+}
+
+const MessageAttachments = ({ attachments }: { attachments: ChatAttachment[] }) => (
+  <div className="message-attachments">
+    {attachments.map((attachment) => (
+      <div key={attachment.id} className="message-attachment">
+        <div className="message-attachment__topline">
+          <span>{attachment.originalFilename}</span>
+          <span>{attachment.kind}</span>
+        </div>
+
+        <div className="message-attachment__meta">
+          <span>{formatAttachmentSize(attachment.sizeBytes)}</span>
+          {attachmentStatusLabel(attachment) ? (
+            <span>{attachmentStatusLabel(attachment)}</span>
+          ) : null}
+        </div>
+
+        {attachment.kind === 'audio' && attachment.transcription?.text ? (
+          <p className="message-attachment__transcription">
+            {attachment.transcription.text}
+          </p>
+        ) : null}
+      </div>
+    ))}
+  </div>
+)
 
 const LandingWord = () => {
   const [characters, setCharacters] = useState(() =>
@@ -102,28 +187,47 @@ interface ChatPageProps {
   draft: string
   error: string | null
   isSending: boolean
+  isRecording: boolean
+  isRecorderSupported: boolean
+  recorderDurationMs: number
   messages: ChatMessage[]
-  threadId: string
+  pendingAttachments: PendingAttachment[]
+  sessionId: string | null
   onBack: () => void
   onChangeDraft: (value: string) => void
-  onResetThread: () => void
-  onSend: (nextDraft?: string) => Promise<void>
+  onAttachFiles: (files: FileList | null) => void
+  onRemoveAttachment: (localId: string) => void
+  onResetSession: () => void
+  onSend: () => Promise<void>
   onAbort: () => void
+  onStartRecording: () => Promise<void>
+  onStopRecording: () => Promise<void>
+  onCancelRecording: () => Promise<void>
 }
 
 const ChatPage = ({
   draft,
   error,
   isSending,
+  isRecording,
+  isRecorderSupported,
+  recorderDurationMs,
   messages,
-  threadId,
+  pendingAttachments,
+  sessionId,
   onBack,
   onChangeDraft,
-  onResetThread,
+  onAttachFiles,
+  onRemoveAttachment,
+  onResetSession,
   onSend,
   onAbort,
+  onStartRecording,
+  onStopRecording,
+  onCancelRecording,
 }: ChatPageProps) => {
   const feedRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     const feed = feedRef.current
@@ -135,7 +239,14 @@ const ChatPage = ({
       top: feed.scrollHeight,
       behavior: 'smooth',
     })
-  }, [isSending, messages])
+  }, [isSending, isRecording, messages, pendingAttachments])
+
+  const canSend =
+    !isSending &&
+    !isRecording &&
+    pendingAttachments.every((attachment) => attachment.status !== 'uploading') &&
+    (draft.trim().length > 0 ||
+      pendingAttachments.some((attachment) => attachment.status === 'ready'))
 
   return (
     <section className="chat-page">
@@ -149,11 +260,13 @@ const ChatPage = ({
           </button>
 
           <div className="terminal-meta">
-            <span className="terminal-thread">thread_id={threadId}</span>
+            <span className="terminal-thread">
+              session_id={sessionId ?? 'pending'}
+            </span>
           </div>
 
-          <button className="terminal-button" type="button" onClick={onResetThread}>
-            new thread
+          <button className="terminal-button" type="button" onClick={onResetSession}>
+            new session
           </button>
         </header>
 
@@ -182,13 +295,19 @@ const ChatPage = ({
               </div>
 
               <div className="message-content">
-                {message.role === 'assistant' ? (
-                  <Suspense fallback={<p className="message-plain">{message.content}</p>}>
-                    <AssistantMarkdown content={message.content} />
-                  </Suspense>
-                ) : (
-                  <p className="message-plain">{message.content}</p>
-                )}
+                {message.content ? (
+                  message.role === 'assistant' ? (
+                    <Suspense fallback={<p className="message-plain">{message.content}</p>}>
+                      <AssistantMarkdown content={message.content} />
+                    </Suspense>
+                  ) : (
+                    <p className="message-plain">{message.content}</p>
+                  )
+                ) : null}
+
+                {message.attachments?.length ? (
+                  <MessageAttachments attachments={message.attachments} />
+                ) : null}
               </div>
             </article>
           ))}
@@ -211,60 +330,37 @@ const ChatPage = ({
           ) : null}
         </div>
 
-        <form
-          className="composer"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void onSend()
+        <ChatComposer
+          draft={draft}
+          canSend={canSend}
+          isSending={isSending}
+          isRecording={isRecording}
+          isRecorderSupported={isRecorderSupported}
+          durationMs={recorderDurationMs}
+          pendingAttachments={pendingAttachments}
+          fileInputRef={fileInputRef}
+          onAbort={onAbort}
+          onAttachFiles={(event) => {
+            onAttachFiles(event.target.files)
+            event.target.value = ''
           }}
-        >
-          <label className="sr-only" htmlFor="chat-message">
-            Wiadomosc do asystenta
-          </label>
-
-          <div className="composer-shell">
-            <span className="composer-prompt" aria-hidden="true">
-              &gt;
-            </span>
-
-            <textarea
-              id="chat-message"
-              className="composer-textarea"
-              value={draft}
-              rows={3}
-              placeholder="write command..."
-              onChange={(event) => onChangeDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault()
-                  void onSend()
-                }
-              }}
-            />
-          </div>
-
-          <div className="composer-actions">
-            <div className="composer-actions__buttons">
-              {isSending ? (
-                <button
-                  className="terminal-button terminal-button--ghost"
-                  type="button"
-                  onClick={onAbort}
-                >
-                  abort
-                </button>
-              ) : null}
-
-              <button
-                className="terminal-button"
-                type="submit"
-                disabled={isSending || draft.trim().length === 0}
-              >
-                send
-              </button>
-            </div>
-          </div>
-        </form>
+          onChangeDraft={onChangeDraft}
+          onSend={() => {
+            if (canSend) {
+              void onSend()
+            }
+          }}
+          onRemoveAttachment={onRemoveAttachment}
+          onStartRecording={() => {
+            void onStartRecording()
+          }}
+          onStopRecording={() => {
+            void onStopRecording()
+          }}
+          onCancelRecording={() => {
+            void onCancelRecording()
+          }}
+        />
       </section>
     </section>
   )
@@ -273,8 +369,9 @@ const ChatPage = ({
 function App() {
   const [route, setRoute] = useState<Route>(() => getCurrentRoute())
   const [initialState] = useState(() => loadStoredChatState())
-  const [threadId, setThreadId] = useState(() => initialState?.threadId ?? createThreadId())
+  const [sessionId, setSessionId] = useState<string | null>(() => initialState?.sessionId ?? null)
   const [messages, setMessages] = useState<ChatMessage[]>(() => initialState?.messages ?? [])
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
@@ -286,13 +383,29 @@ function App() {
     return window.localStorage.getItem(matrixRainStorageKey) !== 'false'
   })
   const abortControllerRef = useRef<AbortController | null>(null)
+  const sessionIdRef = useRef<string | null>(sessionId)
+  const generationRef = useRef(0)
+  const uploadQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const {
+    cancelRecording,
+    durationMs: recorderDurationMs,
+    error: recorderError,
+    isRecording,
+    isSupported: isRecorderSupported,
+    startRecording,
+    stopRecording,
+  } = useVoiceRecorder()
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId
+  }, [sessionId])
 
   useEffect(() => {
     saveStoredChatState({
-      threadId,
+      sessionId,
       messages,
     })
-  }, [messages, threadId])
+  }, [messages, sessionId])
 
   useEffect(() => {
     const handlePopState = () => {
@@ -317,6 +430,12 @@ function App() {
     window.localStorage.setItem(matrixRainStorageKey, String(isRainEnabled))
   }, [isRainEnabled])
 
+  useEffect(() => {
+    if (recorderError) {
+      setError(recorderError)
+    }
+  }, [recorderError])
+
   const navigate = (nextRoute: Route) => {
     if (window.location.pathname !== nextRoute) {
       window.history.pushState({}, '', nextRoute)
@@ -326,14 +445,115 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleSend = async (nextDraft?: string) => {
-    const messageText = (nextDraft ?? draft).trim()
+  const queueAttachmentUpload = (file: File, source: PendingAttachment['source']) => {
+    const localId = crypto.randomUUID()
+    const generation = generationRef.current
 
-    if (!messageText || isSending) {
+    setPendingAttachments((currentAttachments) => [
+      ...currentAttachments,
+      {
+        localId,
+        kind: inferAttachmentKind(file.type),
+        mimeType: file.type || 'application/octet-stream',
+        originalFilename: file.name,
+        sizeBytes: file.size,
+        status: 'uploading',
+        source,
+      },
+    ])
+
+    uploadQueueRef.current = uploadQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          const response = await uploadAttachments({
+            files: [file],
+            sessionId: sessionIdRef.current,
+          })
+
+          if (generation !== generationRef.current) {
+            return
+          }
+
+          if (response.sessionId) {
+            sessionIdRef.current = response.sessionId
+            setSessionId(response.sessionId)
+          }
+
+          const uploadedAttachment = response.attachments[0]
+
+          if (!uploadedAttachment) {
+            throw new ChatApiError('Backend nie zwrocil attachmentu po uploadzie.', 500)
+          }
+
+          setPendingAttachments((currentAttachments) =>
+            currentAttachments.map((attachment) =>
+              attachment.localId === localId
+                ? {
+                    ...attachment,
+                    status: 'ready',
+                    attachment: uploadedAttachment,
+                    kind: uploadedAttachment.kind,
+                    mimeType: uploadedAttachment.mimeType,
+                    originalFilename: uploadedAttachment.originalFilename,
+                    sizeBytes: uploadedAttachment.sizeBytes,
+                    error: undefined,
+                  }
+                : attachment,
+            ),
+          )
+        } catch (caughtError) {
+          if (generation !== generationRef.current) {
+            return
+          }
+
+          setPendingAttachments((currentAttachments) =>
+            currentAttachments.map((attachment) =>
+              attachment.localId === localId
+                ? {
+                    ...attachment,
+                    status: 'error',
+                    error:
+                      caughtError instanceof ChatApiError
+                        ? caughtError.message
+                        : `Blad polaczenia z ${chatAttachmentsEndpointLabel}.`,
+                  }
+                : attachment,
+            ),
+          )
+        }
+      })
+  }
+
+  const handleAttachFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) {
       return
     }
 
-    const userMessage = createMessage('user', messageText)
+    setError(null)
+    Array.from(files).forEach((file) => {
+      queueAttachmentUpload(file, 'file')
+    })
+  }
+
+  const handleSend = async () => {
+    const messageText = draft.trim()
+    const readyAttachments = pendingAttachments
+      .filter((attachment): attachment is PendingAttachment & { attachment: ChatAttachment } => {
+        return attachment.status === 'ready' && Boolean(attachment.attachment)
+      })
+      .map((attachment) => attachment.attachment)
+
+    if (
+      isSending ||
+      isRecording ||
+      pendingAttachments.some((attachment) => attachment.status === 'uploading') ||
+      (messageText.length === 0 && readyAttachments.length === 0)
+    ) {
+      return
+    }
+
+    const userMessage = createMessage('user', messageText, readyAttachments)
     const controller = new AbortController()
 
     abortControllerRef.current = controller
@@ -343,27 +563,45 @@ function App() {
     setDraft('')
 
     try {
-      const response = await sendChatMessage(
+      const response = await sendChatCompletion(
         {
-          message: messageText,
-          threadId,
+          sessionId,
+          message: messageText || undefined,
+          attachmentIds: readyAttachments.map((attachment) => attachment.id),
         },
         controller.signal,
       )
 
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        createMessage('assistant', response.message),
-      ])
+      if (response.sessionId) {
+        sessionIdRef.current = response.sessionId
+        setSessionId(response.sessionId)
+      }
+
+      setPendingAttachments([])
+
+      if (response.message) {
+        setMessages((currentMessages) => [
+          ...currentMessages,
+          createMessage('assistant', response.message),
+        ])
+      }
     } catch (caughtError) {
       if (caughtError instanceof DOMException && caughtError.name === 'AbortError') {
+        setMessages((currentMessages) =>
+          currentMessages.filter((message) => message.id !== userMessage.id),
+        )
+        setDraft(messageText)
         return
       }
 
+      setMessages((currentMessages) =>
+        currentMessages.filter((message) => message.id !== userMessage.id),
+      )
+      setDraft(messageText)
       setError(
         caughtError instanceof ChatApiError
           ? caughtError.message
-          : `Blad polaczenia z ${chatEndpointLabel}.`,
+          : `Blad polaczenia z ${chatCompletionsEndpointLabel}.`,
       )
     } finally {
       abortControllerRef.current = null
@@ -371,14 +609,49 @@ function App() {
     }
   }
 
-  const handleResetThread = () => {
+  const handleResetSession = () => {
+    generationRef.current += 1
     abortControllerRef.current?.abort()
     clearStoredChatState()
-    setThreadId(createThreadId())
+    sessionIdRef.current = null
+    uploadQueueRef.current = Promise.resolve()
+    setSessionId(null)
     setMessages([])
+    setPendingAttachments([])
     setDraft('')
     setError(null)
     setIsSending(false)
+    void cancelRecording()
+  }
+
+  const handleStopRecording = async () => {
+    let recordedAudio = null
+
+    try {
+      recordedAudio = await stopRecording()
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Nagrywanie nie powiodlo sie.',
+      )
+      return
+    }
+
+    if (!recordedAudio) {
+      return
+    }
+
+    const timestamp = new Date().toISOString().replaceAll(':', '-')
+    const file = new File(
+      [recordedAudio.blob],
+      `voice-${timestamp}.${recordedAudio.extension}`,
+      {
+        type: recordedAudio.mimeType,
+        lastModified: Date.now(),
+      },
+    )
+
+    setError(null)
+    queueAttachmentUpload(file, 'voice')
   }
 
   return (
@@ -401,13 +674,26 @@ function App() {
           draft={draft}
           error={error}
           isSending={isSending}
+          isRecording={isRecording}
+          isRecorderSupported={isRecorderSupported}
+          recorderDurationMs={recorderDurationMs}
           messages={messages}
-          threadId={threadId}
+          pendingAttachments={pendingAttachments}
+          sessionId={sessionId}
           onBack={() => navigate('/')}
           onChangeDraft={setDraft}
-          onResetThread={handleResetThread}
+          onAttachFiles={handleAttachFiles}
+          onRemoveAttachment={(localId) => {
+            setPendingAttachments((currentAttachments) =>
+              currentAttachments.filter((attachment) => attachment.localId !== localId),
+            )
+          }}
+          onResetSession={handleResetSession}
           onSend={handleSend}
           onAbort={() => abortControllerRef.current?.abort()}
+          onStartRecording={startRecording}
+          onStopRecording={handleStopRecording}
+          onCancelRecording={cancelRecording}
         />
       )}
     </main>
