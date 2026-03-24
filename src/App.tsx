@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import {
   ChatApiError,
+  type ChatCompletionResponse,
   chatAttachmentsEndpointLabel,
   chatCompletionsEndpointLabel,
   sendChatCompletion,
@@ -12,12 +13,17 @@ import {
   loadStoredChatState,
   saveStoredChatState,
 } from './lib/storage'
-import type { ChatAttachment, ChatMessage, PendingAttachment } from './types/chat'
+import type {
+  AgentResponse,
+  ChatAttachment,
+  ChatEntry,
+  ChatMessage,
+  PendingAttachment,
+} from './types/chat'
+import AgentResponseBlock from './components/AgentResponseBlock'
 import MatrixRain from './components/MatrixRain'
 import ChatComposer from './components/ChatComposer'
 import { useVoiceRecorder } from './hooks/useVoiceRecorder'
-
-const AssistantMarkdown = lazy(() => import('./components/AssistantMarkdown'))
 
 const targetWord = ['M', 'A', 'N', 'F', 'R', 'E', 'D']
 const routeChat = '/chat'
@@ -71,16 +77,35 @@ const inferAttachmentKind = (mimeType: string) => {
 }
 
 const createMessage = (
-  role: ChatMessage['role'],
   content: string,
   attachments?: ChatAttachment[],
 ): ChatMessage => ({
   id: crypto.randomUUID(),
-  role,
+  entryType: 'message',
+  role: 'user',
   content,
   createdAt: new Date().toISOString(),
   attachments: attachments && attachments.length > 0 ? attachments : undefined,
 })
+
+const createAgentResponse = (
+  response: ChatCompletionResponse,
+  createdAt = new Date().toISOString(),
+): AgentResponse => ({
+  id: crypto.randomUUID(),
+  entryType: 'agent_response',
+  sessionId: response.sessionId,
+  agentId: response.agentId,
+  parentAgentId: response.parentAgentId,
+  depth: response.depth,
+  agentName: response.agentName,
+  role: 'assistant',
+  createdAt,
+  items: response.items,
+})
+
+const isAgentResponse = (entry: ChatEntry): entry is AgentResponse =>
+  entry.entryType === 'agent_response'
 
 const randomGlyph = () =>
   scrambleGlyphs[Math.floor(Math.random() * scrambleGlyphs.length)]
@@ -190,7 +215,7 @@ interface ChatPageProps {
   isRecording: boolean
   isRecorderSupported: boolean
   recorderDurationMs: number
-  messages: ChatMessage[]
+  entries: ChatEntry[]
   pendingAttachments: PendingAttachment[]
   sessionId: string | null
   onBack: () => void
@@ -212,7 +237,7 @@ const ChatPage = ({
   isRecording,
   isRecorderSupported,
   recorderDurationMs,
-  messages,
+  entries,
   pendingAttachments,
   sessionId,
   onBack,
@@ -239,7 +264,7 @@ const ChatPage = ({
       top: feed.scrollHeight,
       behavior: 'smooth',
     })
-  }, [isSending, isRecording, messages, pendingAttachments])
+  }, [entries, isSending, isRecording, pendingAttachments])
 
   const canSend =
     !isSending &&
@@ -278,36 +303,34 @@ const ChatPage = ({
 
         <div
           ref={feedRef}
-          className={`message-feed ${messages.length === 0 ? 'message-feed--idle' : ''}`}
+          className={`message-feed ${entries.length === 0 ? 'message-feed--idle' : ''}`}
         >
-          {messages.length === 0 ? (
+          {entries.length === 0 ? (
             <div className="empty-log">no messages yet</div>
           ) : null}
 
-          {messages.map((message) => (
+          {entries.map((entry) => (
             <article
-              key={message.id}
-              className={`message-row message-row--${message.role}`}
+              key={entry.id}
+              className={`message-row message-row--${entry.role}`}
             >
               <div className="message-prefix">
-                <span>{message.role === 'assistant' ? 'ai' : 'usr'}</span>
-                <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                <span>{entry.role === 'assistant' ? 'ai' : 'usr'}</span>
+                <time dateTime={entry.createdAt}>{formatTime(entry.createdAt)}</time>
               </div>
 
               <div className="message-content">
-                {message.content ? (
-                  message.role === 'assistant' ? (
-                    <Suspense fallback={<p className="message-plain">{message.content}</p>}>
-                      <AssistantMarkdown content={message.content} />
-                    </Suspense>
-                  ) : (
-                    <p className="message-plain">{message.content}</p>
-                  )
-                ) : null}
+                {isAgentResponse(entry) ? (
+                  <AgentResponseBlock response={entry} />
+                ) : (
+                  <>
+                    {entry.content ? <p className="message-plain">{entry.content}</p> : null}
 
-                {message.attachments?.length ? (
-                  <MessageAttachments attachments={message.attachments} />
-                ) : null}
+                    {entry.attachments?.length ? (
+                      <MessageAttachments attachments={entry.attachments} />
+                    ) : null}
+                  </>
+                )}
               </div>
             </article>
           ))}
@@ -367,7 +390,7 @@ function App() {
   const [route, setRoute] = useState<Route>(() => getCurrentRoute())
   const [initialState] = useState(() => loadStoredChatState())
   const [sessionId, setSessionId] = useState<string | null>(() => initialState?.sessionId ?? null)
-  const [messages, setMessages] = useState<ChatMessage[]>(() => initialState?.messages ?? [])
+  const [entries, setEntries] = useState<ChatEntry[]>(() => initialState?.entries ?? [])
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -400,9 +423,9 @@ function App() {
   useEffect(() => {
     saveStoredChatState({
       sessionId,
-      messages,
+      entries,
     })
-  }, [messages, sessionId])
+  }, [entries, sessionId])
 
   useEffect(() => {
     const handlePopState = () => {
@@ -570,13 +593,13 @@ function App() {
       return
     }
 
-    const userMessage = createMessage('user', messageText, readyAttachments)
+    const userMessage = createMessage(messageText, readyAttachments)
     const controller = new AbortController()
 
     abortControllerRef.current = controller
     setError(null)
     setIsSending(true)
-    setMessages((currentMessages) => [...currentMessages, userMessage])
+    setEntries((currentEntries) => [...currentEntries, userMessage])
     setDraft('')
 
     try {
@@ -595,24 +618,21 @@ function App() {
       }
 
       setPendingAttachments([])
-
-      if (response.message) {
-        setMessages((currentMessages) => [
-          ...currentMessages,
-          createMessage('assistant', response.message),
-        ])
-      }
+      setEntries((currentEntries) => [
+        ...currentEntries,
+        createAgentResponse(response),
+      ])
     } catch (caughtError) {
       if (caughtError instanceof DOMException && caughtError.name === 'AbortError') {
-        setMessages((currentMessages) =>
-          currentMessages.filter((message) => message.id !== userMessage.id),
+        setEntries((currentEntries) =>
+          currentEntries.filter((entry) => entry.id !== userMessage.id),
         )
         setDraft(messageText)
         return
       }
 
-      setMessages((currentMessages) =>
-        currentMessages.filter((message) => message.id !== userMessage.id),
+      setEntries((currentEntries) =>
+        currentEntries.filter((entry) => entry.id !== userMessage.id),
       )
       setDraft(messageText)
       setError(
@@ -633,7 +653,7 @@ function App() {
     sessionIdRef.current = null
     uploadQueueRef.current = Promise.resolve()
     setSessionId(null)
-    setMessages([])
+    setEntries([])
     setPendingAttachments([])
     setDraft('')
     setError(null)
@@ -694,7 +714,7 @@ function App() {
           isRecording={isRecording}
           isRecorderSupported={isRecorderSupported}
           recorderDurationMs={recorderDurationMs}
-          messages={messages}
+          entries={entries}
           pendingAttachments={pendingAttachments}
           sessionId={sessionId}
           onBack={() => navigate('/')}
