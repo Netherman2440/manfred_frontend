@@ -275,16 +275,70 @@
   background: rgba(0, 32, 0, 0.7);
 }
 
-.agent-response,
-.agent-response__items {
+.agent-response {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(68, 255, 68, 0.18);
+  background: rgba(0, 10, 0, 0.36);
+}
+
+.agent-response__summary,
+.agent-section__summary,
+.structured-data__summary {
+  list-style: none;
+}
+
+.agent-response__summary,
+.agent-section__summary {
+  cursor: pointer;
+}
+
+.agent-response__summary::-webkit-details-marker,
+.agent-section__summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-response__summary {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(68, 255, 68, 0.14);
+  background: rgba(0, 18, 0, 0.5);
+}
+
+.agent-response__headline,
+.agent-tool-group__header,
+.agent-section__summary-main,
+.agent-section__summary-meta,
+.agent-tool-group__meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.agent-response__title,
+.agent-section__name {
+  color: #e8ffe8;
+  overflow-wrap: anywhere;
+}
+
+.agent-response__body,
+.agent-section__body,
+.agent-section__timeline,
+.agent-tool-group__body,
+.agent-section__children,
+.agent-tool-group__children {
   display: grid;
   gap: 12px;
 }
 
-.agent-response__meta {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.agent-response__body {
+  padding: 0 16px 16px;
+}
+
+.agent-response__meta,
+.agent-section__summary-meta {
   color: var(--matrix-dim);
   font-size: 0.78rem;
   letter-spacing: 0.08em;
@@ -295,13 +349,93 @@
   color: var(--matrix-dim);
 }
 
+.agent-section {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(68, 255, 68, 0.14);
+  background: rgba(0, 16, 0, 0.28);
+}
+
+.agent-section--active {
+  border-color: rgba(126, 255, 126, 0.42);
+  box-shadow: 0 0 0 1px rgba(68, 255, 68, 0.14) inset;
+}
+
+.agent-section__summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  background: rgba(0, 12, 0, 0.42);
+}
+
+.agent-section__body {
+  padding: 0 14px 14px;
+}
+
+.agent-section__children,
+.agent-tool-group__children {
+  padding-left: 12px;
+  border-left: 1px solid rgba(68, 255, 68, 0.16);
+}
+
+.agent-section__waiting {
+  display: grid;
+  gap: 8px;
+}
+
+.agent-section__waiting-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.agent-section__meta-label,
+.agent-item__label {
+  color: var(--matrix-dim);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.agent-status,
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid rgba(68, 255, 68, 0.2);
+  background: rgba(0, 0, 0, 0.28);
+  color: #dcffdc;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-chip--active,
+.agent-status--running,
+.agent-status--waiting {
+  border-color: rgba(255, 220, 120, 0.36);
+  color: #ffe5a0;
+}
+
+.agent-status--completed {
+  border-color: rgba(68, 255, 68, 0.24);
+}
+
+.agent-status--failed,
+.agent-status--error,
+.agent-status--cancelled {
+  border-color: rgba(255, 90, 90, 0.34);
+  color: #ffb3b3;
+}
+
 .agent-item {
   display: grid;
   gap: 10px;
 }
 
-.agent-item--tool-call,
-.agent-item--tool-output,
+.agent-item--text,
+.agent-tool-group,
 .agent-item--unknown {
   padding: 12px;
   border: 1px solid rgba(68, 255, 68, 0.18);
@@ -313,7 +447,7 @@
   background: rgba(0, 8, 0, 0.3);
 }
 
-.agent-item--error {
+.agent-tool-group--error {
   border-color: rgba(255, 90, 90, 0.34);
   background: rgba(28, 0, 0, 0.32);
 }
@@ -326,18 +460,10 @@
 
 .agent-item__summary {
   cursor: pointer;
-  list-style: none;
 }
 
 .agent-item__summary::-webkit-details-marker {
   display: none;
-}
-
-.agent-item__label {
-  color: var(--matrix-dim);
-  font-size: 0.74rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 
 .agent-item__title {
@@ -358,11 +484,31 @@
   padding: 0 12px 12px;
 }
 
+.agent-tool-group__title {
+  display: grid;
+  gap: 4px;
+}
+
+.agent-tool-group__body {
+  margin-top: 10px;
+}
+
+.agent-tool-group__placeholder {
+  padding: 12px;
+  border: 1px dashed rgba(68, 255, 68, 0.16);
+  color: var(--matrix-dim);
+}
+
 .structured-data {
   display: grid;
   gap: 10px;
   border: 1px solid rgba(68, 255, 68, 0.14);
   background: rgba(0, 0, 0, 0.32);
+}
+
+.structured-data--error {
+  border-color: rgba(255, 90, 90, 0.32);
+  background: rgba(32, 0, 0, 0.36);
 }
 
 .structured-data__summary {

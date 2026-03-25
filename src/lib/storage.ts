@@ -1,10 +1,15 @@
 import type {
-  AgentItem,
   AgentResponse,
   ChatAttachment,
   ChatAttachmentTranscription,
   ChatEntry,
 } from '../types/chat'
+import {
+  normalizeAgentItems,
+  normalizeChatTrace,
+  normalizeStoredAgentTree,
+  normalizeTurnStatus,
+} from './agent-trace'
 
 const storageKey = 'manfred-chat-state'
 
@@ -99,84 +104,6 @@ const normalizeAttachments = (value: unknown) => {
   return attachments.length > 0 ? attachments : undefined
 }
 
-const normalizeAgentItem = (value: unknown): AgentItem | null => {
-  if (!isRecord(value)) {
-    return null
-  }
-
-  const id = readOptionalString(value.id)
-  const type = value.type
-
-  if (!id || typeof type !== 'string') {
-    return null
-  }
-
-  switch (type) {
-    case 'text': {
-      const text = readOptionalString(value.text)
-
-      return text
-        ? {
-            id,
-            type: 'text',
-            text,
-          }
-        : null
-    }
-    case 'reasoning': {
-      const text = readOptionalString(value.text)
-      const summary = readOptionalString(value.summary)
-
-      return text || summary
-        ? {
-            id,
-            type: 'reasoning',
-            text,
-            summary,
-            metadata: isRecord(value.metadata) ? value.metadata : undefined,
-          }
-        : null
-    }
-    case 'function_call': {
-      const callId = readOptionalString(value.callId)
-      const name = readOptionalString(value.name)
-
-      return callId && name
-        ? {
-            id,
-            type: 'function_call',
-            callId,
-            name,
-            arguments: value.arguments,
-          }
-        : null
-    }
-    case 'function_call_output': {
-      const callId = readOptionalString(value.callId)
-      const name = readOptionalString(value.name)
-
-      return callId
-        ? {
-            id,
-            type: 'function_call_output',
-            callId,
-            name,
-            output: value.output,
-            isError: typeof value.isError === 'boolean' ? value.isError : undefined,
-          }
-        : null
-    }
-    case 'unknown':
-      return {
-        id,
-        type: 'unknown',
-        raw: value.raw,
-      }
-    default:
-      return null
-  }
-}
-
 const createLegacyAssistantResponse = (
   legacyMessage: Record<string, unknown>,
   sessionId: string | null,
@@ -193,18 +120,33 @@ const createLegacyAssistantResponse = (
     id,
     entryType: 'agent_response',
     sessionId,
-    agentId: 'assistant',
+    rootAgentId: 'assistant',
+    turnStatus: 'completed',
     role: 'assistant',
     createdAt,
-    items: content
-      ? [
-          {
-            id: `${id}-text`,
-            type: 'text',
-            text: content,
-          },
-        ]
-      : [],
+    agents: [
+      {
+        agentId: 'assistant',
+        agentName: 'assistant',
+        status: 'completed',
+        depth: 0,
+        timeline: content
+          ? [
+              {
+                id: `${id}-text`,
+                type: 'text',
+                item: {
+                  id: `${id}-text`,
+                  type: 'text',
+                  text: content,
+                },
+              },
+            ]
+          : [],
+        childAgents: [],
+        isActive: false,
+      },
+    ],
   }
 }
 
@@ -231,17 +173,30 @@ const normalizeStoredEntry = (
         value.sessionId === null || typeof value.sessionId === 'string'
           ? value.sessionId
           : sessionId,
-      agentId: readOptionalString(value.agentId) ?? 'assistant',
-      parentAgentId: readOptionalString(value.parentAgentId),
-      depth: readOptionalNumber(value.depth),
-      agentName: readOptionalString(value.agentName),
+      rootAgentId:
+        readOptionalString(value.rootAgentId) ??
+        readOptionalString(value.agentId) ??
+        'assistant',
+      activeAgentId: readOptionalString(value.activeAgentId),
+      turnStatus: normalizeTurnStatus(value.turnStatus),
       role: 'assistant',
       createdAt,
-      items: Array.isArray(value.items)
-        ? value.items
-            .map((item) => normalizeAgentItem(item))
-            .filter((item): item is AgentItem => item !== null)
-        : [],
+      agents: Array.isArray(value.agents)
+        ? normalizeStoredAgentTree(value.agents)
+        : normalizeChatTrace({
+            rootAgentId: value.rootAgentId ?? value.agentId,
+            activeAgentId: value.activeAgentId,
+            turnStatus: value.turnStatus,
+            agentId: value.agentId,
+            parentAgentId: value.parentAgentId,
+            depth: value.depth,
+            agentName: value.agentName,
+            items: Array.isArray(value.items)
+              ? value.items
+              : Array.isArray(value.output)
+                ? normalizeAgentItems(value.output)
+                : [],
+          }).agents,
     }
   }
 

@@ -70,17 +70,76 @@ export type AgentItem =
   | FunctionCallOutputAgentItem
   | UnknownAgentItem
 
+export type AgentExecutionStatus =
+  | 'pending'
+  | 'running'
+  | 'waiting'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export type TurnExecutionStatus = AgentExecutionStatus
+
+export interface WaitingForState {
+  id: string
+  label: string
+  kind?: string
+  raw: unknown
+}
+
+export interface ToolTraceGroup {
+  callId: string
+  toolName: string
+  callItem?: FunctionCallAgentItem
+  resultItem?: FunctionCallOutputAgentItem
+  childAgents: AgentTreeNode[]
+}
+
+export type AgentTimelineItem =
+  | {
+      id: string
+      type: 'text'
+      item: TextAgentItem
+    }
+  | {
+      id: string
+      type: 'reasoning'
+      item: ReasoningAgentItem
+    }
+  | {
+      id: string
+      type: 'tool'
+      group: ToolTraceGroup
+    }
+  | {
+      id: string
+      type: 'unknown'
+      item: UnknownAgentItem
+    }
+
+export interface AgentTreeNode {
+  agentId: string
+  agentName: string
+  status: AgentExecutionStatus
+  depth: number
+  parentAgentId?: string
+  sourceCallId?: string
+  waitingFor?: WaitingForState[]
+  timeline: AgentTimelineItem[]
+  childAgents: AgentTreeNode[]
+  isActive: boolean
+}
+
 export interface AgentResponse {
   id: string
   entryType: 'agent_response'
   sessionId: string | null
-  agentId: string
-  parentAgentId?: string
-  depth?: number
-  agentName?: string
+  rootAgentId: string
+  activeAgentId?: string
+  turnStatus: TurnExecutionStatus
   role: 'assistant'
   createdAt: string
-  items: AgentItem[]
+  agents: AgentTreeNode[]
 }
 
 export type ChatEntry = ChatMessage | AgentResponse

@@ -1,9 +1,10 @@
 import type {
+  AgentTreeNode,
   AttachmentKind,
-  AgentItem,
   ChatAttachment,
   ChatAttachmentTranscription,
 } from '../types/chat'
+import { normalizeChatTrace } from './agent-trace'
 
 const apiBaseUrl = (import.meta.env.API_BASE_URL ?? '').replace(/\/+$/, '')
 
@@ -24,13 +25,10 @@ interface ChatCompletionPayload {
 
 export interface ChatCompletionResponse {
   sessionId: string | null
-  agentId: string
-  parentAgentId?: string
-  depth?: number
-  agentName?: string
-  output: unknown[]
-  items: AgentItem[]
-  message: string
+  rootAgentId: string
+  activeAgentId?: string
+  turnStatus: 'pending' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
+  agents: AgentTreeNode[]
 }
 
 export interface UploadAttachmentsPayload {
@@ -56,6 +54,13 @@ interface ErrorResponsePayload {
 interface RawChatCompletionResponse {
   sessionId?: unknown
   session_id?: unknown
+  rootAgentId?: unknown
+  root_agent_id?: unknown
+  activeAgentId?: unknown
+  active_agent_id?: unknown
+  turnStatus?: unknown
+  turn_status?: unknown
+  status?: unknown
   agentId?: unknown
   agent_id?: unknown
   parentAgentId?: unknown
@@ -63,6 +68,11 @@ interface RawChatCompletionResponse {
   depth?: unknown
   agentName?: unknown
   agent_name?: unknown
+  agents?: unknown
+  items?: unknown
+  timeline?: unknown
+  waitingFor?: unknown
+  waiting_for?: unknown
   output?: unknown
 }
 
@@ -89,26 +99,6 @@ interface RawAttachment {
   size_bytes?: unknown
   size?: unknown
   transcription?: unknown
-}
-
-interface RawTextValue {
-  value?: unknown
-}
-
-interface RawOutputItem {
-  id?: unknown
-  type?: unknown
-  text?: unknown
-  summary?: unknown
-  content?: unknown
-  name?: unknown
-  callId?: unknown
-  call_id?: unknown
-  arguments?: unknown
-  output?: unknown
-  isError?: unknown
-  is_error?: unknown
-  metadata?: unknown
 }
 
 export class ChatApiError extends Error {
@@ -193,28 +183,6 @@ const readSessionId = (value: { sessionId?: unknown; session_id?: unknown }) => 
 
   return typeof sessionId === 'string' && sessionId.length > 0 ? sessionId : null
 }
-
-const readOptionalString = (value: unknown) =>
-  typeof value === 'string' && value.length > 0 ? value : undefined
-
-const readOptionalNumber = (value: unknown) => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-
-  if (typeof value === 'string' && value.trim().length > 0) {
-    const parsedValue = Number(value)
-
-    return Number.isFinite(parsedValue) ? parsedValue : undefined
-  }
-
-  return undefined
-}
-
-const ensureObjectRecord = (value: unknown) =>
-  value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
 
 const inferAttachmentKind = (mimeType: string): AttachmentKind => {
   if (mimeType.startsWith('image/')) {
@@ -316,225 +284,6 @@ const normalizeAttachment = (value: unknown): ChatAttachment => {
   }
 }
 
-const collectOutputText = (value: unknown): string[] => {
-  if (!value) {
-    return []
-  }
-
-  if (typeof value === 'string') {
-    return value.length > 0 ? [value] : []
-  }
-
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => collectOutputText(item))
-  }
-
-  if (typeof value !== 'object') {
-    return []
-  }
-
-  const item = value as {
-    type?: unknown
-    text?: unknown
-    content?: unknown
-  }
-  const textValue =
-    typeof item.text === 'string'
-      ? item.text
-      : item.text && typeof item.text === 'object'
-        ? (item.text as RawTextValue).value
-        : undefined
-
-  const texts: string[] = []
-
-  if (
-    (item.type === 'text' || item.type === 'output_text' || typeof item.type === 'undefined') &&
-    typeof textValue === 'string' &&
-    textValue.length > 0
-  ) {
-    texts.push(textValue)
-  }
-
-  if (item.content) {
-    texts.push(...collectOutputText(item.content))
-  }
-
-  return texts
-}
-
-const safeParseJson = (value: string) => {
-  try {
-    return JSON.parse(value) as unknown
-  } catch {
-    return value
-  }
-}
-
-const readTextValue = (value: unknown): string | undefined => {
-  if (typeof value === 'string' && value.length > 0) {
-    return value
-  }
-
-  if (value && typeof value === 'object') {
-    const rawTextValue = value as RawTextValue
-
-    return typeof rawTextValue.value === 'string' && rawTextValue.value.length > 0
-      ? rawTextValue.value
-      : undefined
-  }
-
-  return undefined
-}
-
-const readContentText = (value: unknown): string | undefined => {
-  const texts = collectOutputText(value)
-
-  return texts.length > 0 ? texts.join('\n\n').trim() : undefined
-}
-
-const normalizeReasoningMetadata = (value: unknown) => {
-  const metadata = ensureObjectRecord(value)
-
-  return metadata && Object.keys(metadata).length > 0 ? metadata : undefined
-}
-
-const normalizeToolArguments = (value: unknown) => {
-  if (typeof value === 'string') {
-    return safeParseJson(value)
-  }
-
-  return value
-}
-
-const normalizeToolOutput = (value: unknown) => {
-  if (typeof value === 'string') {
-    return safeParseJson(value)
-  }
-
-  return value
-}
-
-const createUnknownItem = (raw: unknown): AgentItem => ({
-  id: crypto.randomUUID(),
-  type: 'unknown',
-  raw,
-})
-
-export const normalizeOutputItem = (raw: unknown): AgentItem[] => {
-  if (!raw || typeof raw !== 'object') {
-    return [createUnknownItem(raw)]
-  }
-
-  const item = raw as RawOutputItem
-  const id = readOptionalString(item.id) ?? crypto.randomUUID()
-  const type = readOptionalString(item.type)
-  const text = readTextValue(item.text)
-  const contentText = readContentText(item.content)
-  const summary = readTextValue(item.summary)
-  const name = readOptionalString(item.name)
-  const callId = readOptionalString(item.callId ?? item.call_id)
-
-  switch (type) {
-    case 'text':
-    case 'output_text':
-    case 'assistant_message': {
-      const normalizedText = text ?? contentText
-
-      return normalizedText
-        ? [
-            {
-              id,
-              type: 'text',
-              text: normalizedText,
-            },
-          ]
-        : [createUnknownItem(raw)]
-    }
-    case 'reasoning':
-    case 'reasoning_summary': {
-      if (!text && !summary) {
-        return [createUnknownItem(raw)]
-      }
-
-      return [
-        {
-          id,
-          type: 'reasoning',
-          text,
-          summary,
-          metadata: normalizeReasoningMetadata(item.metadata),
-        },
-      ]
-    }
-    case 'function_call':
-    case 'tool_call': {
-      if (!callId || !name) {
-        return [createUnknownItem(raw)]
-      }
-
-      return [
-        {
-          id,
-          type: 'function_call',
-          callId,
-          name,
-          arguments: normalizeToolArguments(item.arguments),
-        },
-      ]
-    }
-    case 'function_call_output':
-    case 'tool_result': {
-      if (!callId) {
-        return [createUnknownItem(raw)]
-      }
-
-      return [
-        {
-          id,
-          type: 'function_call_output',
-          callId,
-          name,
-          output: normalizeToolOutput(item.output),
-          isError:
-            typeof item.isError === 'boolean'
-              ? item.isError
-              : typeof item.is_error === 'boolean'
-                ? item.is_error
-                : undefined,
-        },
-      ]
-    }
-    case 'message': {
-      if (!Array.isArray(item.content)) {
-        return [createUnknownItem(raw)]
-      }
-
-      const nestedItems = item.content.flatMap((contentItem) => normalizeOutputItem(contentItem))
-
-      return nestedItems.length > 0 ? nestedItems : [createUnknownItem(raw)]
-    }
-    default: {
-      if (!type && (text ?? contentText)) {
-        return [
-          {
-            id,
-            type: 'text',
-            text: text ?? contentText ?? '',
-          },
-        ]
-      }
-
-      return [createUnknownItem(raw)]
-    }
-  }
-}
-
-export const normalizeAgentItems = (rawOutput: unknown[]): AgentItem[] => {
-  const normalizedItems = rawOutput.flatMap((rawItem) => normalizeOutputItem(rawItem))
-
-  return normalizedItems.length > 0 ? normalizedItems : []
-}
-
 export const sendChatCompletion = async (
   payload: ChatCompletionPayload,
   signal?: AbortSignal,
@@ -585,31 +334,24 @@ export const sendChatCompletion = async (
   }
 
   const data = (await response.json()) as RawChatCompletionResponse
-  const output = Array.isArray(data.output) ? data.output : []
-  const items = normalizeAgentItems(output)
+  const trace = normalizeChatTrace(data)
 
   debugChatApi('chat.completions.response', {
     url: chatCompletionsEndpointLabel,
     status: response.status,
     sessionId: readSessionId(data),
-    agentId: readOptionalString(data.agentId ?? data.agent_id) ?? 'assistant',
-    outputCount: output.length,
-    normalizedItemCount: items.length,
+    rootAgentId: trace.rootAgentId,
+    activeAgentId: trace.activeAgentId ?? null,
+    agentCount: trace.agents.length,
+    turnStatus: trace.turnStatus,
   })
 
   return {
     sessionId: readSessionId(data),
-    agentId: readOptionalString(data.agentId ?? data.agent_id) ?? 'assistant',
-    parentAgentId: readOptionalString(data.parentAgentId ?? data.parent_agent_id),
-    depth: readOptionalNumber(data.depth),
-    agentName: readOptionalString(data.agentName ?? data.agent_name),
-    output,
-    items,
-    message: items
-      .filter((item): item is Extract<AgentItem, { type: 'text' }> => item.type === 'text')
-      .map((item) => item.text)
-      .join('\n\n')
-      .trim(),
+    rootAgentId: trace.rootAgentId,
+    activeAgentId: trace.activeAgentId,
+    turnStatus: trace.turnStatus,
+    agents: trace.agents,
   }
 }
 

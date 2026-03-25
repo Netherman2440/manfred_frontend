@@ -95,13 +95,12 @@ const createAgentResponse = (
   id: crypto.randomUUID(),
   entryType: 'agent_response',
   sessionId: response.sessionId,
-  agentId: response.agentId,
-  parentAgentId: response.parentAgentId,
-  depth: response.depth,
-  agentName: response.agentName,
+  rootAgentId: response.rootAgentId,
+  activeAgentId: response.activeAgentId,
+  turnStatus: response.turnStatus,
   role: 'assistant',
   createdAt,
-  items: response.items,
+  agents: response.agents,
 })
 
 const isAgentResponse = (entry: ChatEntry): entry is AgentResponse =>
