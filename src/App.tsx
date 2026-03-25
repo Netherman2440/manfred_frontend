@@ -14,44 +14,74 @@ import {
   saveStoredChatState,
 } from './lib/storage'
 import type {
-  AgentResponse,
   ChatAttachment,
   ChatEntry,
   ChatMessage,
   PendingAttachment,
 } from './types/chat'
-import AgentResponseBlock from './components/AgentResponseBlock'
 import MatrixRain from './components/MatrixRain'
 import ChatComposer from './components/ChatComposer'
+import ChatEntryFeed from './components/ChatEntryFeed'
+import SessionDetailPage from './components/SessionDetailPage'
+import SessionListPage from './components/SessionListPage'
 import { useVoiceRecorder } from './hooks/useVoiceRecorder'
 
 const targetWord = ['M', 'A', 'N', 'F', 'R', 'E', 'D']
 const routeChat = '/chat'
+const routeSessions = '/sessions'
 const scrambleGlyphs = '01ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%&*+-<>'
 const matrixRainStorageKey = 'manfred-matrix-rain-enabled'
 
-type Route = '/' | '/chat'
+type Route =
+  | { kind: 'landing' }
+  | { kind: 'chat' }
+  | { kind: 'sessions' }
+  | { kind: 'session-detail'; sessionId: string }
 
-const getCurrentRoute = (): Route =>
-  window.location.pathname === routeChat ? routeChat : '/'
+const normalizePathname = (pathname: string) =>
+  pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
 
-const formatTime = (value: string) =>
-  new Intl.DateTimeFormat('pl-PL', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date(value))
-
-const formatAttachmentSize = (sizeBytes: number) => {
-  if (sizeBytes >= 1024 * 1024) {
-    return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+const getPathForRoute = (route: Route) => {
+  if (route.kind === 'landing') {
+    return '/'
   }
 
-  if (sizeBytes >= 1024) {
-    return `${Math.round(sizeBytes / 1024)} KB`
+  if (route.kind === 'chat') {
+    return routeChat
   }
 
-  return `${sizeBytes} B`
+  if (route.kind === 'sessions') {
+    return routeSessions
+  }
+
+  return `${routeSessions}/${encodeURIComponent(route.sessionId)}`
+}
+
+const getCurrentRoute = (): Route => {
+  const pathname = normalizePathname(window.location.pathname)
+
+  if (pathname === routeChat) {
+    return { kind: 'chat' }
+  }
+
+  if (pathname === routeSessions) {
+    return { kind: 'sessions' }
+  }
+
+  const sessionDetailMatch = pathname.match(/^\/sessions\/([^/]+)$/)
+
+  if (sessionDetailMatch) {
+    try {
+      return {
+        kind: 'session-detail',
+        sessionId: decodeURIComponent(sessionDetailMatch[1]),
+      }
+    } catch {
+      return { kind: 'sessions' }
+    }
+  }
+
+  return { kind: 'landing' }
 }
 
 const inferAttachmentKind = (mimeType: string) => {
@@ -91,7 +121,7 @@ const createMessage = (
 const createAgentResponse = (
   response: ChatCompletionResponse,
   createdAt = new Date().toISOString(),
-): AgentResponse => ({
+): ChatEntry => ({
   id: crypto.randomUUID(),
   entryType: 'agent_response',
   sessionId: response.sessionId,
@@ -103,53 +133,8 @@ const createAgentResponse = (
   agents: response.agents,
 })
 
-const isAgentResponse = (entry: ChatEntry): entry is AgentResponse =>
-  entry.entryType === 'agent_response'
-
 const randomGlyph = () =>
   scrambleGlyphs[Math.floor(Math.random() * scrambleGlyphs.length)]
-
-const attachmentStatusLabel = (attachment: ChatAttachment) => {
-  if (attachment.kind !== 'audio' || !attachment.transcription) {
-    return null
-  }
-
-  if (attachment.transcription.status === 'pending') {
-    return 'transcribing'
-  }
-
-  if (attachment.transcription.status === 'failed') {
-    return 'transcription failed'
-  }
-
-  return 'transcription ready'
-}
-
-const MessageAttachments = ({ attachments }: { attachments: ChatAttachment[] }) => (
-  <div className="message-attachments">
-    {attachments.map((attachment) => (
-      <div key={attachment.id} className="message-attachment">
-        <div className="message-attachment__topline">
-          <span>{attachment.originalFilename}</span>
-          <span>{attachment.kind}</span>
-        </div>
-
-        <div className="message-attachment__meta">
-          <span>{formatAttachmentSize(attachment.sizeBytes)}</span>
-          {attachmentStatusLabel(attachment) ? (
-            <span>{attachmentStatusLabel(attachment)}</span>
-          ) : null}
-        </div>
-
-        {attachment.kind === 'audio' && attachment.transcription?.text ? (
-          <p className="message-attachment__transcription">
-            {attachment.transcription.text}
-          </p>
-        ) : null}
-      </div>
-    ))}
-  </div>
-)
 
 const LandingWord = () => {
   const [characters, setCharacters] = useState(() =>
@@ -218,6 +203,7 @@ interface ChatPageProps {
   pendingAttachments: PendingAttachment[]
   sessionId: string | null
   onBack: () => void
+  onOpenSessions: () => void
   onChangeDraft: (value: string) => void
   onAttachFiles: (files: Iterable<File> | null) => void
   onRemoveAttachment: (localId: string) => void
@@ -240,6 +226,7 @@ const ChatPage = ({
   pendingAttachments,
   sessionId,
   onBack,
+  onOpenSessions,
   onChangeDraft,
   onAttachFiles,
   onRemoveAttachment,
@@ -279,14 +266,22 @@ const ChatPage = ({
           made by agentV
         </div>
         <header className="terminal-topbar">
-          <button className="terminal-button terminal-button--ghost" type="button" onClick={onBack}>
-            &lt; root
-          </button>
+          <div className="terminal-topbar__actions">
+            <button className="terminal-button terminal-button--ghost" type="button" onClick={onBack}>
+              &lt; root
+            </button>
+
+            <button
+              className="terminal-button terminal-button--ghost"
+              type="button"
+              onClick={onOpenSessions}
+            >
+              sessions
+            </button>
+          </div>
 
           <div className="terminal-meta">
-            <span className="terminal-thread">
-              session_id={sessionId ?? 'pending'}
-            </span>
+            <span className="terminal-thread">session_id={sessionId ?? 'pending'}</span>
           </div>
 
           <button className="terminal-button" type="button" onClick={onResetSession}>
@@ -300,57 +295,12 @@ const ChatPage = ({
           </div>
         ) : null}
 
-        <div
-          ref={feedRef}
-          className={`message-feed ${entries.length === 0 ? 'message-feed--idle' : ''}`}
-        >
-          {entries.length === 0 ? (
-            <div className="empty-log">no messages yet</div>
-          ) : null}
-
-          {entries.map((entry) => (
-            <article
-              key={entry.id}
-              className={`message-row message-row--${entry.role}`}
-            >
-              <div className="message-prefix">
-                <span>{entry.role === 'assistant' ? 'ai' : 'usr'}</span>
-                <time dateTime={entry.createdAt}>{formatTime(entry.createdAt)}</time>
-              </div>
-
-              <div className="message-content">
-                {isAgentResponse(entry) ? (
-                  <AgentResponseBlock response={entry} />
-                ) : (
-                  <>
-                    {entry.content ? <p className="message-plain">{entry.content}</p> : null}
-
-                    {entry.attachments?.length ? (
-                      <MessageAttachments attachments={entry.attachments} />
-                    ) : null}
-                  </>
-                )}
-              </div>
-            </article>
-          ))}
-
-          {isSending ? (
-            <article className="message-row message-row--assistant">
-              <div className="message-prefix">
-                <span>ai</span>
-                <span>stream</span>
-              </div>
-
-              <div className="message-content">
-                <div className="typing-indicator" aria-label="Backend odpowiada">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              </div>
-            </article>
-          ) : null}
-        </div>
+        <ChatEntryFeed
+          emptyLabel="no messages yet"
+          entries={entries}
+          feedRef={feedRef}
+          isSending={isSending}
+        />
 
         <ChatComposer
           draft={draft}
@@ -456,8 +406,10 @@ function App() {
   }, [recorderError])
 
   const navigate = (nextRoute: Route) => {
-    if (window.location.pathname !== nextRoute) {
-      window.history.pushState({}, '', nextRoute)
+    const nextPath = getPathForRoute(nextRoute)
+
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath)
     }
 
     setRoute(nextRoute)
@@ -617,10 +569,7 @@ function App() {
       }
 
       setPendingAttachments([])
-      setEntries((currentEntries) => [
-        ...currentEntries,
-        createAgentResponse(response),
-      ])
+      setEntries((currentEntries) => [...currentEntries, createAgentResponse(response)])
     } catch (caughtError) {
       if (caughtError instanceof DOMException && caughtError.name === 'AbortError') {
         setEntries((currentEntries) =>
@@ -703,9 +652,11 @@ function App() {
 
       {isRainEnabled ? <MatrixRain /> : null}
 
-      {route === '/' ? (
-        <LandingPage onEnter={() => navigate(routeChat)} />
-      ) : (
+      {route.kind === 'landing' ? (
+        <LandingPage onEnter={() => navigate({ kind: 'chat' })} />
+      ) : null}
+
+      {route.kind === 'chat' ? (
         <ChatPage
           draft={draft}
           error={error}
@@ -716,7 +667,8 @@ function App() {
           entries={entries}
           pendingAttachments={pendingAttachments}
           sessionId={sessionId}
-          onBack={() => navigate('/')}
+          onBack={() => navigate({ kind: 'landing' })}
+          onOpenSessions={() => navigate({ kind: 'sessions' })}
           onChangeDraft={setDraft}
           onAttachFiles={handleAttachFiles}
           onRemoveAttachment={(localId) => {
@@ -731,7 +683,27 @@ function App() {
           onStopRecording={handleStopRecording}
           onCancelRecording={cancelRecording}
         />
-      )}
+      ) : null}
+
+      {route.kind === 'sessions' ? (
+        <SessionListPage
+          activeSessionId={sessionId}
+          onBack={() => navigate({ kind: 'landing' })}
+          onOpenChat={() => navigate({ kind: 'chat' })}
+          onOpenSession={(nextSessionId) =>
+            navigate({ kind: 'session-detail', sessionId: nextSessionId })
+          }
+        />
+      ) : null}
+
+      {route.kind === 'session-detail' ? (
+        <SessionDetailPage
+          activeSessionId={sessionId}
+          onBackToList={() => navigate({ kind: 'sessions' })}
+          onOpenChat={() => navigate({ kind: 'chat' })}
+          sessionId={route.sessionId}
+        />
+      ) : null}
     </main>
   )
 }

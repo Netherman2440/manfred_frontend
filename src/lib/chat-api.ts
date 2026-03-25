@@ -5,8 +5,7 @@ import type {
   ChatAttachmentTranscription,
 } from '../types/chat'
 import { normalizeChatTrace } from './agent-trace'
-
-const apiBaseUrl = (import.meta.env.API_BASE_URL ?? '').replace(/\/+$/, '')
+import { ApiError, apiBaseUrl, readErrorResponse } from './api-utils'
 
 export const chatCompletionsEndpointPath = '/api/v1/chat/completions'
 export const chatAttachmentsEndpointPath = '/api/v1/chat/attachments'
@@ -39,16 +38,6 @@ export interface UploadAttachmentsPayload {
 export interface UploadAttachmentsResponse {
   sessionId: string | null
   attachments: ChatAttachment[]
-}
-
-interface ValidationError {
-  loc?: Array<number | string>
-  msg?: string
-}
-
-interface ErrorResponsePayload {
-  detail?: unknown
-  message?: unknown
 }
 
 interface RawChatCompletionResponse {
@@ -101,15 +90,7 @@ interface RawAttachment {
   transcription?: unknown
 }
 
-export class ChatApiError extends Error {
-  status: number
-
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'ChatApiError'
-    this.status = status
-  }
-}
+export { ApiError as ChatApiError }
 
 const isChatApiDebugEnabled =
   import.meta.env.DEV || import.meta.env.VITE_CHAT_API_DEBUG === 'true'
@@ -124,58 +105,6 @@ const debugChatApi = (event: string, payload: unknown) => {
 
 const errorChatApi = (event: string, payload: unknown) => {
   console.error(`[chat-api] ${event}`, payload)
-}
-
-const extractErrorMessage = (payload: ErrorResponsePayload | null) => {
-  if (!payload) {
-    return null
-  }
-
-  if (typeof payload.message === 'string' && payload.message.length > 0) {
-    return payload.message
-  }
-
-  if (typeof payload.detail === 'string' && payload.detail.length > 0) {
-    return payload.detail
-  }
-
-  if (Array.isArray(payload.detail) && payload.detail.length > 0) {
-    return payload.detail
-      .map((item) => (item as ValidationError).msg)
-      .filter((value): value is string => typeof value === 'string' && value.length > 0)
-      .join(' ')
-  }
-
-  return null
-}
-
-const readErrorResponse = async (response: Response) => {
-  const rawBody = await response.text()
-  const trimmedBody = rawBody.trim()
-
-  if (trimmedBody.length === 0) {
-    return {
-      message: null,
-      rawBody: null,
-      parsedBody: null,
-    }
-  }
-
-  try {
-    const parsedBody = JSON.parse(trimmedBody) as ErrorResponsePayload
-
-    return {
-      message: extractErrorMessage(parsedBody),
-      rawBody: trimmedBody,
-      parsedBody,
-    }
-  } catch {
-    return {
-      message: trimmedBody,
-      rawBody: trimmedBody,
-      parsedBody: null,
-    }
-  }
 }
 
 const readSessionId = (value: { sessionId?: unknown; session_id?: unknown }) => {
@@ -234,7 +163,7 @@ const normalizeTranscription = (
 
 const normalizeAttachment = (value: unknown): ChatAttachment => {
   if (!value || typeof value !== 'object') {
-    throw new ChatApiError('Backend zwrocil nieprawidlowe dane attachmentu.', 500)
+    throw new ApiError('Backend zwrocil nieprawidlowe dane attachmentu.', 500)
   }
 
   const rawAttachment = value as RawAttachment
@@ -262,7 +191,7 @@ const normalizeAttachment = (value: unknown): ChatAttachment => {
     typeof workspacePath !== 'string' ||
     Number.isNaN(parsedSizeBytes)
   ) {
-    throw new ChatApiError('Backend zwrocil niepelne metadane attachmentu.', 500)
+    throw new ApiError('Backend zwrocil niepelne metadane attachmentu.', 500)
   }
 
   const kind =
@@ -327,7 +256,7 @@ export const sendChatCompletion = async (
       responseBody: parsedBody ?? rawBody,
     })
 
-    throw new ChatApiError(
+    throw new ApiError(
       message ?? `Backend czatu zwrocil blad HTTP ${response.status}.`,
       response.status,
     )
@@ -404,7 +333,7 @@ export const uploadAttachments = async (
       responseBody: parsedBody ?? rawBody,
     })
 
-    throw new ChatApiError(
+    throw new ApiError(
       message ?? `Backend attachmentow zwrocil blad HTTP ${response.status}.`,
       response.status,
     )
