@@ -13,9 +13,11 @@ void main() {
     await tester.pumpWidget(const ManfredApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Sessions'), findsOneWidget);
+    expect(find.text('Sessions'), findsWidgets);
     expect(find.text('ui-foundation'), findsWidgets);
-    expect(find.text('Artifacts'), findsOneWidget);
+    expect(find.text('Artifacts'), findsWidgets);
+    expect(find.text('NetHerman2440'), findsWidgets);
+    expect(find.text('Dostepny'), findsOneWidget);
     expect(
       find.text(
         'Dobrze. Kolumny mają być w osobnych plikach, a sama konwersacja nie ma już rozróżniać tooli ani delegate.',

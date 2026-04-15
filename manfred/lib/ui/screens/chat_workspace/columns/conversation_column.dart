@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../mock/manfred_mock_data.dart';
 import '../controls/composer_mock.dart';
-import '../controls/workspace_icon_button.dart';
 import '../conversation/conversation_list.dart';
 
 class ConversationColumn extends StatelessWidget {
@@ -21,27 +20,16 @@ class ConversationColumn extends StatelessWidget {
 
     return Column(
       children: <Widget>[
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            showCompactHeader ? 16 : 24,
-            18,
-            showCompactHeader ? 16 : 24,
-            16,
+        if (showCompactHeader) ...<Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(sessionView.title, style: textTheme.titleLarge),
+            ),
           ),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(sessionView.title, style: textTheme.titleLarge),
-              ),
-              WorkspaceIconButton(
-                icon: Icons.tune_rounded,
-                tooltip: 'Session options',
-                onTap: () {},
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
+          const Divider(height: 1),
+        ],
         Expanded(child: ConversationList(entries: sessionView.entries)),
         ComposerMock(showCompactLayout: showCompactHeader),
       ],

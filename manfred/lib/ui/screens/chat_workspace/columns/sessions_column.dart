@@ -49,8 +49,6 @@ class SessionsColumn extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text('Sessions', style: textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text('Root agent: $rootAgent', style: textTheme.bodySmall),
                   ],
                 ),
               ),

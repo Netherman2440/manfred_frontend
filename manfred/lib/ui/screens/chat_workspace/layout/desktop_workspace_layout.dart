@@ -7,6 +7,8 @@ import '../columns/additional_column.dart';
 import '../columns/agent_column.dart';
 import '../columns/conversation_column.dart';
 import '../columns/sessions_column.dart';
+import 'desktop_workspace_top_bar.dart';
+import 'workspace_account_bar.dart';
 
 class DesktopWorkspaceLayout extends StatefulWidget {
   const DesktopWorkspaceLayout({
@@ -25,115 +27,155 @@ class DesktopWorkspaceLayout extends StatefulWidget {
 }
 
 class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
+  static const double _agentWidth = 92;
   static const double _minSessionsWidth = 280;
   static const double _collapsedSessionsWidth = 176;
-  static const double _collapsedAdditionalWidth = 84;
   static const double _expandedAdditionalWidth = 308;
   static const double _minConversationWidth = 420;
+  static const double _resizeGapWidth = 12;
+  static const double _floatingAccountBottom = 20;
 
   bool _sessionsCollapsed = false;
-  bool _additionalCollapsed = false;
+  bool _additionalVisible = true;
   double _sessionsWidth = _minSessionsWidth;
+
+  @override
+  void initState() {
+    super.initState();
+    _additionalVisible = widget.showAdditionalColumn;
+  }
+
+  @override
+  void didUpdateWidget(covariant DesktopWorkspaceLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.showAdditionalColumn) {
+      _additionalVisible = false;
+    } else if (!oldWidget.showAdditionalColumn && widget.showAdditionalColumn) {
+      _additionalVisible = true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxSessionsWidth = _resolveMaxSessionsWidth(constraints.maxWidth);
+        final showAdditionalPanel =
+            widget.showAdditionalColumn && _additionalVisible;
+        final maxSessionsWidth = _resolveMaxSessionsWidth(
+          totalWidth: constraints.maxWidth,
+          showAdditionalPanel: showAdditionalPanel,
+        );
         final currentSessionsWidth = _sessionsCollapsed
             ? _collapsedSessionsWidth
             : _sessionsWidth.clamp(_minSessionsWidth, maxSessionsWidth);
+        final leftClusterWidth =
+            (widget.showAgentColumn ? _agentWidth : 0) + currentSessionsWidth;
 
-        return Row(
+        return Column(
           children: <Widget>[
-            if (widget.showAgentColumn)
-              SizedBox(
-                width: 92,
-                child: _ColumnFrame(
-                  child: AgentColumn(agents: widget.workspace.agents),
-                ),
-              ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOut,
-              width: currentSessionsWidth,
+            DesktopWorkspaceTopBar(
+              workspace: widget.workspace,
+              showAgentColumn: widget.showAgentColumn,
+              sessionsWidth: currentSessionsWidth,
+              showAdditionalColumn: showAdditionalPanel,
+              showResizeGap: !_sessionsCollapsed,
+              onToggleAdditionalColumn: widget.showAdditionalColumn
+                  ? () {
+                      setState(() {
+                        _additionalVisible = !_additionalVisible;
+                      });
+                    }
+                  : () {},
+            ),
+            Expanded(
               child: Stack(
                 children: <Widget>[
-                  _ColumnFrame(
-                    background: ManfredColors.sessionsBackground,
-                    child: SessionsColumn(
-                      sessions: widget.workspace.sessions,
-                      rootAgent: widget.workspace.sessionView.rootAgent,
-                      collapsed: _sessionsCollapsed,
-                      onToggleCollapse: () {
-                        setState(
-                          () => _sessionsCollapsed = !_sessionsCollapsed,
-                        );
-                      },
+                  Row(
+                    children: <Widget>[
+                      if (widget.showAgentColumn)
+                        SizedBox(
+                          width: _agentWidth,
+                          child: _ColumnFrame(
+                            child: AgentColumn(agents: widget.workspace.agents),
+                          ),
+                        ),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        width: currentSessionsWidth,
+                        child: _ColumnFrame(
+                          background: ManfredColors.sessionsBackground,
+                          child: SessionsColumn(
+                            sessions: widget.workspace.sessions,
+                            rootAgent: widget.workspace.sessionView.rootAgent,
+                            collapsed: _sessionsCollapsed,
+                            onToggleCollapse: () {
+                              setState(
+                                () => _sessionsCollapsed = !_sessionsCollapsed,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      if (!_sessionsCollapsed)
+                        _SessionsResizeHandle(
+                          onDragUpdate: (delta) {
+                            setState(() {
+                              _sessionsWidth = (_sessionsWidth + delta).clamp(
+                                _minSessionsWidth,
+                                maxSessionsWidth,
+                              );
+                            });
+                          },
+                        ),
+                      Expanded(
+                        child: _ColumnFrame(
+                          isMainPanel: true,
+                          child: ConversationColumn(
+                            sessionView: widget.workspace.sessionView,
+                            showCompactHeader: false,
+                          ),
+                        ),
+                      ),
+                      if (showAdditionalPanel)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          width: _expandedAdditionalWidth,
+                          child: _ColumnFrame(
+                            child: AdditionalColumn(
+                              data: widget.workspace.rightRail,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  Positioned(
+                    left: 12,
+                    bottom: _floatingAccountBottom,
+                    child: WorkspaceAccountBar(
+                      user: widget.workspace.currentUser,
+                      width: leftClusterWidth,
                     ),
                   ),
-                  if (!_sessionsCollapsed)
-                    Positioned(
-                      top: 12,
-                      bottom: 12,
-                      right: 0,
-                      child: _SessionsResizeHandle(
-                        onDragUpdate: (delta) {
-                          setState(() {
-                            _sessionsWidth = (_sessionsWidth + delta).clamp(
-                              _minSessionsWidth,
-                              maxSessionsWidth,
-                            );
-                          });
-                        },
-                      ),
-                    ),
                 ],
               ),
             ),
-            Expanded(
-              child: _ColumnFrame(
-                isMainPanel: true,
-                child: ConversationColumn(
-                  sessionView: widget.workspace.sessionView,
-                  showCompactHeader: false,
-                ),
-              ),
-            ),
-            if (widget.showAdditionalColumn)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                width: _additionalCollapsed
-                    ? _collapsedAdditionalWidth
-                    : _expandedAdditionalWidth,
-                child: _ColumnFrame(
-                  child: AdditionalColumn(
-                    data: widget.workspace.rightRail,
-                    collapsed: _additionalCollapsed,
-                    onToggleCollapse: () {
-                      setState(
-                        () => _additionalCollapsed = !_additionalCollapsed,
-                      );
-                    },
-                  ),
-                ),
-              ),
           ],
         );
       },
     );
   }
 
-  double _resolveMaxSessionsWidth(double totalWidth) {
+  double _resolveMaxSessionsWidth({
+    required double totalWidth,
+    required bool showAdditionalPanel,
+  }) {
     final reservedWidth =
-        (widget.showAgentColumn ? 92 : 0) +
-        (widget.showAdditionalColumn
-            ? (_additionalCollapsed
-                  ? _collapsedAdditionalWidth
-                  : _expandedAdditionalWidth)
-            : 0) +
-        _minConversationWidth;
+        (widget.showAgentColumn ? _agentWidth : 0) +
+        (showAdditionalPanel ? _expandedAdditionalWidth : 0) +
+        _minConversationWidth +
+        _resizeGapWidth;
 
     return (totalWidth - reservedWidth)
         .clamp(_minSessionsWidth, 520)
@@ -171,6 +213,8 @@ class _SessionsResizeHandle extends StatefulWidget {
 }
 
 class _SessionsResizeHandleState extends State<_SessionsResizeHandle> {
+  static const double _handleWidth = 12;
+
   bool _isHovered = false;
 
   @override
@@ -184,18 +228,21 @@ class _SessionsResizeHandleState extends State<_SessionsResizeHandle> {
         onHorizontalDragUpdate: (details) {
           widget.onDragUpdate(details.delta.dx);
         },
-        child: Container(
-          width: 14,
-          alignment: Alignment.center,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
-            width: _isHovered ? 3 : 2,
-            decoration: BoxDecoration(
-              color: _isHovered
-                  ? ManfredColors.accentBlue.withValues(alpha: 0.65)
-                  : ManfredColors.borderSubtle,
-              borderRadius: BorderRadius.circular(999),
+        child: SizedBox(
+          width: _handleWidth,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              width: _isHovered ? 3 : 2,
+              height: double.infinity,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: _isHovered
+                    ? ManfredColors.accentBlue.withValues(alpha: 0.65)
+                    : ManfredColors.borderSubtle,
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
           ),
         ),

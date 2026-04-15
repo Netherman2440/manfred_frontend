@@ -4,7 +4,6 @@ import '../../../core/agent_avatar.dart';
 import '../../../core/hover_tile_container.dart';
 import '../../../mock/manfred_mock_data.dart';
 import '../../../theme/manfred_theme.dart';
-import '../controls/workspace_icon_button.dart';
 
 class AgentColumn extends StatelessWidget {
   const AgentColumn({super.key, required this.agents, this.compact = false});
@@ -31,18 +30,6 @@ class _DesktopAgentColumn extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 14),
       child: Column(
         children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: WorkspaceIconButton(
-                icon: Icons.home_rounded,
-                tooltip: 'Home',
-                onTap: () {},
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           Expanded(
             child: ListView.separated(
               itemCount: agents.length,
@@ -54,18 +41,6 @@ class _DesktopAgentColumn extends StatelessWidget {
                   child: _AgentRailItem(agent: agent),
                 );
               },
-            ),
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: WorkspaceIconButton(
-                icon: Icons.add_rounded,
-                tooltip: 'New root agent',
-                onTap: () {},
-              ),
             ),
           ),
         ],

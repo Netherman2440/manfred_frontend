@@ -7,12 +7,14 @@ class WorkspaceMock {
     required this.sessions,
     required this.sessionView,
     required this.rightRail,
+    required this.currentUser,
   });
 
   final List<AgentMock> agents;
   final List<SessionMock> sessions;
   final SessionViewMock sessionView;
   final RightRailMock rightRail;
+  final CurrentUserMock currentUser;
 }
 
 @immutable
@@ -102,6 +104,21 @@ class RailHighlightMock {
 
   final String label;
   final String value;
+}
+
+@immutable
+class CurrentUserMock {
+  const CurrentUserMock({
+    required this.label,
+    required this.name,
+    required this.status,
+    required this.color,
+  });
+
+  final String label;
+  final String name;
+  final String status;
+  final Color color;
 }
 
 final class ManfredMockData {
@@ -196,6 +213,12 @@ final class ManfredMockData {
         RailHighlightMock(label: 'Session state', value: 'refactor draft'),
         RailHighlightMock(label: 'Visible items', value: '5'),
       ],
+    ),
+    currentUser: CurrentUserMock(
+      label: 'NH',
+      name: 'NetHerman2440',
+      status: 'Dostepny',
+      color: Color(0xFFF5C271),
     ),
   );
 }
