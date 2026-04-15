@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'ui/mock/manfred_mock_data.dart';
-import 'ui/screens/chat_workspace_page.dart';
+import 'ui/screens/chat_workspace/chat_workspace_page.dart';
 import 'ui/theme/manfred_theme.dart';
 
 void main() {

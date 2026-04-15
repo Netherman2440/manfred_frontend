@@ -48,22 +48,15 @@ class SessionViewMock {
   const SessionViewMock({
     required this.title,
     required this.rootAgent,
-    required this.status,
     required this.entries,
   });
 
   final String title;
   final String rootAgent;
-  final String status;
   final List<ConversationEntryMock> entries;
 }
 
-enum ConversationEntryType {
-  userMessage,
-  assistantMessage,
-  toolCard,
-  delegateThread,
-}
+enum ConversationEntryType { user, agent }
 
 @immutable
 class ConversationEntryMock {
@@ -72,26 +65,14 @@ class ConversationEntryMock {
     required this.author,
     required this.dateLabel,
     required this.timeLabel,
-    this.body,
-    this.title,
-    this.status,
-    this.previewTitle,
-    this.previewBody,
-    this.tags = const <String>[],
-    this.threadCount,
+    required this.body,
   });
 
   final ConversationEntryType type;
   final String author;
   final String dateLabel;
   final String timeLabel;
-  final String? body;
-  final String? title;
-  final String? status;
-  final String? previewTitle;
-  final String? previewBody;
-  final List<String> tags;
-  final int? threadCount;
+  final String body;
 }
 
 @immutable
@@ -149,10 +130,9 @@ final class ManfredMockData {
     sessionView: SessionViewMock(
       title: 'ui-foundation',
       rootAgent: 'Manfred',
-      status: 'static mock',
       entries: <ConversationEntryMock>[
         ConversationEntryMock(
-          type: ConversationEntryType.userMessage,
+          type: ConversationEntryType.user,
           author: 'NetHerman2440',
           dateLabel: '15.04.2026',
           timeLabel: '09:22',
@@ -160,7 +140,7 @@ final class ManfredMockData {
               'Kolumna sesji ma być prostsza, bardziej jak lista kanałów. Dodatkowo ustawmy pełne koła dla ikon agentów i avatarów w czacie.',
         ),
         ConversationEntryMock(
-          type: ConversationEntryType.assistantMessage,
+          type: ConversationEntryType.agent,
           author: 'Manfred',
           dateLabel: '15.04.2026',
           timeLabel: '09:23',
@@ -168,37 +148,28 @@ final class ManfredMockData {
               'Upraszczam listę sesji do samych nazw z prefiksem, zaostrzam rogi przycisków przez wspólne tokeny stylu i zmieniam avatary na kołowe.',
         ),
         ConversationEntryMock(
-          type: ConversationEntryType.toolCard,
-          author: 'Tool',
+          type: ConversationEntryType.agent,
+          author: 'Manfred',
           dateLabel: '15.04.2026',
           timeLabel: '09:24',
-          title: 'update_theme_tokens',
-          status: 'completed',
           body:
-              'Zmieniono bazowe kolory aplikacji, hover tile wiadomości i styl panelu sesji.',
-          previewTitle: 'manfred_theme.dart',
-          previewBody:
-              'appBackground=#0e0b09, sessionsBackground=#121214, hover=#222327, sharper button radius.',
-          tags: <String>['theme', 'ui', 'hover'],
+              'Wydzielam wspólne prymitywy UI do osobnych plików, żeby hover, avatary i tła kolumn nie były już kopiowane po ekranie.',
         ),
         ConversationEntryMock(
-          type: ConversationEntryType.assistantMessage,
-          author: 'Manfred',
+          type: ConversationEntryType.user,
+          author: 'NetHerman2440',
           dateLabel: '15.04.2026',
           timeLabel: '09:25',
           body:
-              'Wiadomości użytkownika i agenta dostają hover na całym tile. Same karty tool i delegate zostają osobnymi blokami, żeby dalej odróżniały typy itemów.',
+              'Dobrze. Kolumny mają być w osobnych plikach, a sama konwersacja nie ma już rozróżniać tooli ani delegate.',
         ),
         ConversationEntryMock(
-          type: ConversationEntryType.delegateThread,
-          author: 'Frontend worker',
+          type: ConversationEntryType.agent,
+          author: 'Manfred',
           dateLabel: '15.04.2026',
           timeLabel: '09:26',
-          title: 'session-rail-refresh',
           body:
-              'Przestawiono rail sesji na listę tekstową z aktywnym zaznaczeniem oraz kompaktowym layoutem mobilnym.',
-          threadCount: 18,
-          tags: <String>['frontend', 'sub-thread'],
+              'Jasne. Rozbijam workspace na kolumny, dodaję wspólny hover container i upraszczam model wiadomości do dwóch typów: user oraz agent.',
         ),
       ],
     ),
@@ -215,14 +186,14 @@ final class ManfredMockData {
           kind: 'STYLE',
         ),
         RailResourceMock(
-          title: 'session-rail-refresh',
-          meta: 'channel-like navigation',
-          kind: 'THREAD',
+          title: 'workspace-columns',
+          meta: 'chat workspace split',
+          kind: 'REF',
         ),
       ],
       highlights: <RailHighlightMock>[
         RailHighlightMock(label: 'Root agent', value: 'Manfred'),
-        RailHighlightMock(label: 'Session state', value: 'static mock'),
+        RailHighlightMock(label: 'Session state', value: 'refactor draft'),
         RailHighlightMock(label: 'Visible items', value: '5'),
       ],
     ),

@@ -16,7 +16,13 @@ void main() {
     expect(find.text('Sessions'), findsOneWidget);
     expect(find.text('ui-foundation'), findsWidgets);
     expect(find.text('Artifacts'), findsOneWidget);
-    expect(find.text('update_theme_tokens'), findsOneWidget);
-    expect(find.text('session-rail-refresh'), findsWidgets);
+    expect(
+      find.text(
+        'Dobrze. Kolumny mają być w osobnych plikach, a sama konwersacja nie ma już rozróżniać tooli ani delegate.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('update_theme_tokens'), findsNothing);
+    expect(find.text('session-rail-refresh'), findsNothing);
   });
 }
