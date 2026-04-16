@@ -4,11 +4,12 @@ import '../../../../core/agent_avatar.dart';
 import '../../../../core/hover_tile_container.dart';
 import '../../../../mock/manfred_mock_data.dart';
 import '../../../../theme/manfred_theme.dart';
+import 'conversation_entry_header.dart';
 
 class AgentMessageItem extends StatelessWidget {
   const AgentMessageItem({super.key, required this.entry});
 
-  final ConversationEntryMock entry;
+  final AgentConversationEntryMock entry;
 
   @override
   Widget build(BuildContext context) {
@@ -28,22 +29,11 @@ class AgentMessageItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    Text(
-                      entry.author,
-                      style: textTheme.labelLarge?.copyWith(
-                        color: ManfredColors.accentGreen,
-                      ),
-                    ),
-                    Text(
-                      '${entry.dateLabel} ${entry.timeLabel}',
-                      style: textTheme.labelSmall,
-                    ),
-                  ],
+                ConversationEntryHeader(
+                  author: entry.author,
+                  dateLabel: entry.dateLabel,
+                  timeLabel: entry.timeLabel,
+                  authorColor: ManfredColors.accentGreen,
                 ),
                 const SizedBox(height: 8),
                 Text(entry.body, style: textTheme.bodyMedium),

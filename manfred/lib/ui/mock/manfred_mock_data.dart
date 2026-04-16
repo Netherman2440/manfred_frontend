@@ -58,23 +58,100 @@ class SessionViewMock {
   final List<ConversationEntryMock> entries;
 }
 
-enum ConversationEntryType { user, agent }
-
 @immutable
-class ConversationEntryMock {
+sealed class ConversationEntryMock {
   const ConversationEntryMock({
-    required this.type,
-    required this.author,
     required this.dateLabel,
     required this.timeLabel,
+  });
+
+  final String dateLabel;
+  final String timeLabel;
+}
+
+@immutable
+class UserConversationEntryMock extends ConversationEntryMock {
+  const UserConversationEntryMock({
+    required super.dateLabel,
+    required super.timeLabel,
+    required this.author,
     required this.body,
   });
 
-  final ConversationEntryType type;
   final String author;
-  final String dateLabel;
-  final String timeLabel;
   final String body;
+}
+
+@immutable
+class AgentConversationEntryMock extends ConversationEntryMock {
+  const AgentConversationEntryMock({
+    required super.dateLabel,
+    required super.timeLabel,
+    required this.author,
+    required this.body,
+  });
+
+  final String author;
+  final String body;
+}
+
+@immutable
+class ToolCallConversationEntryMock extends ConversationEntryMock {
+  const ToolCallConversationEntryMock({
+    required super.dateLabel,
+    required super.timeLabel,
+    required this.author,
+    required this.toolName,
+    required this.argumentsPreview,
+    required this.argumentsJson,
+    this.outputPreview,
+    this.outputJson,
+    this.isOutputPending = false,
+  });
+
+  final String author;
+  final String toolName;
+  final String argumentsPreview;
+  final String argumentsJson;
+  final String? outputPreview;
+  final String? outputJson;
+  final bool isOutputPending;
+}
+
+@immutable
+class AgentPingConversationEntryMock extends ConversationEntryMock {
+  const AgentPingConversationEntryMock({
+    required super.dateLabel,
+    required super.timeLabel,
+    required this.author,
+    required this.agentName,
+    required this.task,
+  });
+
+  final String author;
+  final String agentName;
+  final String task;
+}
+
+@immutable
+class AgentThreadConversationEntryMock extends ConversationEntryMock {
+  const AgentThreadConversationEntryMock({
+    required super.dateLabel,
+    required super.timeLabel,
+    required this.author,
+    required this.agentName,
+    required this.taskPreview,
+    required this.threadTitle,
+    required this.threadMeta,
+    required this.statusLabel,
+  });
+
+  final String author;
+  final String agentName;
+  final String taskPreview;
+  final String threadTitle;
+  final String threadMeta;
+  final String statusLabel;
 }
 
 @immutable
@@ -148,45 +225,68 @@ final class ManfredMockData {
       title: 'ui-foundation',
       rootAgent: 'Manfred',
       entries: <ConversationEntryMock>[
-        ConversationEntryMock(
-          type: ConversationEntryType.user,
+        UserConversationEntryMock(
           author: 'NetHerman2440',
           dateLabel: '15.04.2026',
           timeLabel: '09:22',
           body:
-              'Kolumna sesji ma być prostsza, bardziej jak lista kanałów. Dodatkowo ustawmy pełne koła dla ikon agentów i avatarów w czacie.',
+              'Potrzebuję nowych wariantów UI w czacie: link-preview dla toola, ping do agenta i preview wątku dla delegate.',
         ),
-        ConversationEntryMock(
-          type: ConversationEntryType.agent,
+        AgentConversationEntryMock(
           author: 'Manfred',
           dateLabel: '15.04.2026',
           timeLabel: '09:23',
           body:
-              'Upraszczam listę sesji do samych nazw z prefiksem, zaostrzam rogi przycisków przez wspólne tokeny stylu i zmieniam avatary na kołowe.',
+              'Rozbijam to na trzy widoki w rozmowie. Najpierw zwykły tool call z krótkim preview argumentów, a po rozwinięciu pokażę pełny JSON i output.',
         ),
-        ConversationEntryMock(
-          type: ConversationEntryType.agent,
+        ToolCallConversationEntryMock(
           author: 'Manfred',
           dateLabel: '15.04.2026',
           timeLabel: '09:24',
-          body:
-              'Wydzielam wspólne prymitywy UI do osobnych plików, żeby hover, avatary i tła kolumn nie były już kopiowane po ekranie.',
+          toolName: 'search_docs',
+          argumentsPreview:
+              '{"query":"powodz lubelskie szpitale","limit":3,"include_snippets":true}',
+          argumentsJson:
+              '{\n  "query": "powodz lubelskie szpitale",\n  "limit": 3,\n  "include_snippets": true\n}',
+          outputPreview:
+              '{"hits":[{"title":"HydrOS | Powódź"},{"title":"Mapa Zarządzania Kryzysowego"}]}',
+          outputJson:
+              '{\n  "hits": [\n    {\n      "title": "HydrOS | Powódź",\n      "url": "https://hackaton.mca7d.com/"\n    },\n    {\n      "title": "Mapa Zarządzania Kryzysowego",\n      "url": "https://civil6767.vercel.app/"\n    }\n  ]\n}',
         ),
-        ConversationEntryMock(
-          type: ConversationEntryType.user,
-          author: 'NetHerman2440',
+        AgentConversationEntryMock(
+          author: 'Manfred',
           dateLabel: '15.04.2026',
           timeLabel: '09:25',
           body:
-              'Dobrze. Kolumny mają być w osobnych plikach, a sama konwersacja nie ma już rozróżniać tooli ani delegate.',
+              'Delegate i message potraktuję osobno, żeby nie wyglądały jak zwykły JSON. W linii pokażę ping do agenta z taskiem.',
         ),
-        ConversationEntryMock(
-          type: ConversationEntryType.agent,
+        AgentPingConversationEntryMock(
           author: 'Manfred',
           dateLabel: '15.04.2026',
           timeLabel: '09:26',
-          body:
-              'Jasne. Rozbijam workspace na kolumny, dodaję wspólny hover container i upraszczam model wiadomości do dwóch typów: user oraz agent.',
+          agentName: 'research',
+          task: 'Znajdź informacje o historii zamku lubelskiego.',
+        ),
+        ToolCallConversationEntryMock(
+          author: 'Manfred',
+          dateLabel: '15.04.2026',
+          timeLabel: '09:26',
+          toolName: 'delegate',
+          argumentsPreview:
+              '{"agent_name":"research","task":"Znajdź informacje o historii zamku lubelskiego."}',
+          argumentsJson:
+              '{\n  "agent_name": "research",\n  "task": "Znajdź informacje o historii zamku lubelskiego."\n}',
+          isOutputPending: true,
+        ),
+        AgentThreadConversationEntryMock(
+          author: 'research',
+          dateLabel: '15.04.2026',
+          timeLabel: '09:27',
+          agentName: 'research',
+          taskPreview: 'Znajdź informacje o historii zamku lubelskiego.',
+          threadTitle: 'Znajdź informacje o historii zamku lubelskim...',
+          threadMeta: '92 wiadomości',
+          statusLabel: 'W tym wątku nie ma nowych wiadomości.',
         ),
       ],
     ),
@@ -211,7 +311,7 @@ final class ManfredMockData {
       highlights: <RailHighlightMock>[
         RailHighlightMock(label: 'Root agent', value: 'Manfred'),
         RailHighlightMock(label: 'Session state', value: 'refactor draft'),
-        RailHighlightMock(label: 'Visible items', value: '5'),
+        RailHighlightMock(label: 'Visible items', value: '6'),
       ],
     ),
     currentUser: CurrentUserMock(

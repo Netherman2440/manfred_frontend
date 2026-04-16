@@ -19,10 +19,22 @@ void main() {
     expect(find.text('NetHerman2440'), findsWidgets);
     expect(find.text('Dostepny'), findsOneWidget);
     expect(
-      find.text(
-        'Dobrze. Kolumny mają być w osobnych plikach, a sama konwersacja nie ma już rozróżniać tooli ani delegate.',
-      ),
+      find.textContaining('Potrzebuję nowych wariantów UI'),
       findsOneWidget,
+    );
+    expect(
+      find.textContaining('@research', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Agent research rozpoczął wątek', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        '{"agent_name":"research","task":"Znajdź informacje o historii zamku lubelskiego."}',
+      ),
+      findsNothing,
     );
     expect(find.text('update_theme_tokens'), findsNothing);
     expect(find.text('session-rail-refresh'), findsNothing);

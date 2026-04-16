@@ -28,7 +28,7 @@ class DesktopWorkspaceLayout extends StatefulWidget {
 
 class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
   static const double _agentWidth = 92;
-  static const double _minSessionsWidth = 280;
+  static const double _minSessionsWidth = 200;
   static const double _collapsedSessionsWidth = 176;
   static const double _expandedAdditionalWidth = 308;
   static const double _minConversationWidth = 420;

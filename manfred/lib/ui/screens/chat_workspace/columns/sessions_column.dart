@@ -35,43 +35,59 @@ class SessionsColumn extends StatelessWidget {
       );
     }
 
-    final textTheme = Theme.of(context).textTheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textTheme = Theme.of(context).textTheme;
+        final useCompactAction = constraints.maxWidth < 240;
 
-    return Padding(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
+        return Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('Sessions', style: textTheme.titleMedium),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              if (useCompactAction)
+                WorkspaceIconButton(
+                  icon: Icons.add_rounded,
+                  tooltip: 'New session',
+                  onTap: () {},
+                  isPrimary: true,
+                )
+              else
+                WorkspaceOutlineButton(
+                  icon: Icons.add_rounded,
+                  label: 'New Session',
+                  onTap: () {},
+                ),
+              const SizedBox(height: 20),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('Sessions', style: textTheme.titleMedium),
-                  ],
+                child: ListView.separated(
+                  itemCount: sessions.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 2),
+                  itemBuilder: (context, index) {
+                    return SessionListItem(
+                      session: sessions[index],
+                      onTap: () {},
+                    );
+                  },
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          WorkspaceOutlineButton(
-            icon: Icons.add_rounded,
-            label: 'New Session',
-            onTap: () {},
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: ListView.separated(
-              itemCount: sessions.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 2),
-              itemBuilder: (context, index) {
-                return SessionListItem(session: sessions[index], onTap: () {});
-              },
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

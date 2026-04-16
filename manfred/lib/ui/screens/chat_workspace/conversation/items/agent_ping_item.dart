@@ -6,10 +6,10 @@ import '../../../../mock/manfred_mock_data.dart';
 import '../../../../theme/manfred_theme.dart';
 import 'conversation_entry_header.dart';
 
-class UserMessageItem extends StatelessWidget {
-  const UserMessageItem({super.key, required this.entry});
+class AgentPingItem extends StatelessWidget {
+  const AgentPingItem({super.key, required this.entry});
 
-  final UserConversationEntryMock entry;
+  final AgentPingConversationEntryMock entry;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +22,7 @@ class UserMessageItem extends StatelessWidget {
         children: <Widget>[
           AgentAvatar(
             label: _avatarLabel(entry.author),
-            accentColor: ManfredColors.accentBlue,
+            accentColor: ManfredColors.accentGreen,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -33,10 +33,24 @@ class UserMessageItem extends StatelessWidget {
                   author: entry.author,
                   dateLabel: entry.dateLabel,
                   timeLabel: entry.timeLabel,
-                  authorColor: ManfredColors.accentBlue,
+                  authorColor: ManfredColors.accentGreen,
                 ),
                 const SizedBox(height: 8),
-                Text(entry.body, style: textTheme.bodyMedium),
+                RichText(
+                  text: TextSpan(
+                    style: textTheme.bodyMedium,
+                    children: <InlineSpan>[
+                      TextSpan(
+                        text: '@${entry.agentName} ',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: ManfredColors.accentBlue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      TextSpan(text: entry.task),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

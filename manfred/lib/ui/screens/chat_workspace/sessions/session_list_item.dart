@@ -31,7 +31,7 @@ class SessionListItem extends StatelessWidget {
             child: Text(
               _compactLabel(session.title),
               textAlign: TextAlign.center,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: textTheme.labelLarge?.copyWith(
                 color: session.isActive
@@ -65,6 +65,8 @@ class SessionListItem extends StatelessWidget {
         ),
         title: Text(
           session.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: textTheme.bodyMedium?.copyWith(
             color: session.isActive
                 ? ManfredColors.textPrimary
