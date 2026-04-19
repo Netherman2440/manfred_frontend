@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'ui/mock/manfred_mock_data.dart';
 import 'ui/screens/chat_workspace/chat_workspace_page.dart';
 import 'ui/theme/manfred_theme.dart';
 
 void main() {
-  runApp(const ManfredApp());
+  runApp(const ProviderScope(child: ManfredApp()));
 }
 
 class ManfredApp extends StatelessWidget {
@@ -14,10 +14,10 @@ class ManfredApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Manfred UI Mock',
+      title: 'Manfred',
       debugShowCheckedModeBanner: false,
       theme: ManfredTheme.dark(),
-      home: const ChatWorkspacePage(workspace: ManfredMockData.workspace),
+      home: const ChatWorkspacePage(),
     );
   }
 }

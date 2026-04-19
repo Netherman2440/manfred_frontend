@@ -16,11 +16,27 @@ class DesktopWorkspaceLayout extends StatefulWidget {
     required this.workspace,
     required this.showAgentColumn,
     required this.showAdditionalColumn,
+    required this.sessionsLoading,
+    required this.sessionsErrorMessage,
+    required this.conversationLoading,
+    required this.conversationErrorMessage,
+    required this.onCreateSession,
+    required this.onSelectSession,
+    required this.onRetrySessions,
+    required this.onRetryConversation,
   });
 
   final WorkspaceMock workspace;
   final bool showAgentColumn;
   final bool showAdditionalColumn;
+  final bool sessionsLoading;
+  final String? sessionsErrorMessage;
+  final bool conversationLoading;
+  final String? conversationErrorMessage;
+  final VoidCallback onCreateSession;
+  final ValueChanged<SessionMock> onSelectSession;
+  final VoidCallback onRetrySessions;
+  final VoidCallback onRetryConversation;
 
   @override
   State<DesktopWorkspaceLayout> createState() => _DesktopWorkspaceLayoutState();
@@ -108,6 +124,11 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                           child: SessionsColumn(
                             sessions: widget.workspace.sessions,
                             rootAgent: widget.workspace.sessionView.rootAgent,
+                            isLoading: widget.sessionsLoading,
+                            errorMessage: widget.sessionsErrorMessage,
+                            onCreateSession: widget.onCreateSession,
+                            onSelectSession: widget.onSelectSession,
+                            onRetry: widget.onRetrySessions,
                             collapsed: _sessionsCollapsed,
                             onToggleCollapse: () {
                               setState(
@@ -134,6 +155,9 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                           child: ConversationColumn(
                             sessionView: widget.workspace.sessionView,
                             showCompactHeader: false,
+                            isLoading: widget.conversationLoading,
+                            errorMessage: widget.conversationErrorMessage,
+                            onRetry: widget.onRetryConversation,
                           ),
                         ),
                       ),

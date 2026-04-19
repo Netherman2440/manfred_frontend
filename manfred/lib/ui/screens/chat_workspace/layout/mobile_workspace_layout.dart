@@ -8,9 +8,28 @@ import '../columns/conversation_column.dart';
 import '../columns/sessions_column.dart';
 
 class MobileWorkspaceLayout extends StatelessWidget {
-  const MobileWorkspaceLayout({super.key, required this.workspace});
+  const MobileWorkspaceLayout({
+    super.key,
+    required this.workspace,
+    required this.sessionsLoading,
+    required this.sessionsErrorMessage,
+    required this.conversationLoading,
+    required this.conversationErrorMessage,
+    required this.onCreateSession,
+    required this.onSelectSession,
+    required this.onRetrySessions,
+    required this.onRetryConversation,
+  });
 
   final WorkspaceMock workspace;
+  final bool sessionsLoading;
+  final String? sessionsErrorMessage;
+  final bool conversationLoading;
+  final String? conversationErrorMessage;
+  final VoidCallback onCreateSession;
+  final ValueChanged<SessionMock> onSelectSession;
+  final VoidCallback onRetrySessions;
+  final VoidCallback onRetryConversation;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +48,11 @@ class MobileWorkspaceLayout extends StatelessWidget {
             child: SessionsColumn(
               sessions: workspace.sessions,
               rootAgent: workspace.sessionView.rootAgent,
+              isLoading: sessionsLoading,
+              errorMessage: sessionsErrorMessage,
+              onCreateSession: onCreateSession,
+              onSelectSession: onSelectSession,
+              onRetry: onRetrySessions,
               compact: true,
             ),
           ),
@@ -40,6 +64,9 @@ class MobileWorkspaceLayout extends StatelessWidget {
               child: ConversationColumn(
                 sessionView: workspace.sessionView,
                 showCompactHeader: true,
+                isLoading: conversationLoading,
+                errorMessage: conversationErrorMessage,
+                onRetry: onRetryConversation,
               ),
             ),
           ),

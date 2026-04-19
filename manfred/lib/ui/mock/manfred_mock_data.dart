@@ -15,6 +15,22 @@ class WorkspaceMock {
   final SessionViewMock sessionView;
   final RightRailMock rightRail;
   final CurrentUserMock currentUser;
+
+  WorkspaceMock copyWith({
+    List<AgentMock>? agents,
+    List<SessionMock>? sessions,
+    SessionViewMock? sessionView,
+    RightRailMock? rightRail,
+    CurrentUserMock? currentUser,
+  }) {
+    return WorkspaceMock(
+      agents: agents ?? this.agents,
+      sessions: sessions ?? this.sessions,
+      sessionView: sessionView ?? this.sessionView,
+      rightRail: rightRail ?? this.rightRail,
+      currentUser: currentUser ?? this.currentUser,
+    );
+  }
 }
 
 @immutable
@@ -35,11 +51,13 @@ class AgentMock {
 @immutable
 class SessionMock {
   const SessionMock({
+    required this.id,
     required this.prefix,
     required this.title,
     this.isActive = false,
   });
 
+  final String id;
   final String prefix;
   final String title;
   final bool isActive;
@@ -56,6 +74,18 @@ class SessionViewMock {
   final String title;
   final String rootAgent;
   final List<ConversationEntryMock> entries;
+
+  SessionViewMock copyWith({
+    String? title,
+    String? rootAgent,
+    List<ConversationEntryMock>? entries,
+  }) {
+    return SessionViewMock(
+      title: title ?? this.title,
+      rootAgent: rootAgent ?? this.rootAgent,
+      entries: entries ?? this.entries,
+    );
+  }
 }
 
 @immutable
@@ -214,12 +244,25 @@ final class ManfredMockData {
       AgentMock(label: 'QA', name: 'Integrator', color: Color(0xFFF28A8A)),
     ],
     sessions: <SessionMock>[
-      SessionMock(prefix: '#', title: 'ui-foundation', isActive: true),
-      SessionMock(prefix: '#', title: 'streaming-states'),
-      SessionMock(prefix: '#', title: 'delegate-preview'),
-      SessionMock(prefix: '#', title: 'files-rail'),
-      SessionMock(prefix: '#', title: 'agent-artifacts'),
-      SessionMock(prefix: '#', title: 'design-notes'),
+      SessionMock(
+        id: 'ui-foundation',
+        prefix: '#',
+        title: 'ui-foundation',
+        isActive: true,
+      ),
+      SessionMock(
+        id: 'streaming-states',
+        prefix: '#',
+        title: 'streaming-states',
+      ),
+      SessionMock(
+        id: 'delegate-preview',
+        prefix: '#',
+        title: 'delegate-preview',
+      ),
+      SessionMock(id: 'files-rail', prefix: '#', title: 'files-rail'),
+      SessionMock(id: 'agent-artifacts', prefix: '#', title: 'agent-artifacts'),
+      SessionMock(id: 'design-notes', prefix: '#', title: 'design-notes'),
     ],
     sessionView: SessionViewMock(
       title: 'ui-foundation',

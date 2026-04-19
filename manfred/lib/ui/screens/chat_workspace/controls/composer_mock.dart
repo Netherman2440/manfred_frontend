@@ -1,57 +1,140 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../features/chat/application/composer_controller.dart';
+import '../../../../features/chat/domain/composer_state.dart';
 import '../../../theme/manfred_theme.dart';
 import 'workspace_icon_button.dart';
 
-class ComposerMock extends StatelessWidget {
+class ComposerMock extends ConsumerStatefulWidget {
   const ComposerMock({super.key, required this.showCompactLayout});
 
   final bool showCompactLayout;
 
   @override
+  ConsumerState<ComposerMock> createState() => _ComposerMockState();
+}
+
+class _ComposerMockState extends ConsumerState<ComposerMock> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: ref.read(composerControllerProvider).draft,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    ref.listen<ComposerState>(composerControllerProvider, (previous, next) {
+      if (_controller.text == next.draft) {
+        return;
+      }
+
+      _controller.value = TextEditingValue(
+        text: next.draft,
+        selection: TextSelection.collapsed(offset: next.draft.length),
+      );
+    });
+
+    final state = ref.watch(composerControllerProvider);
+    final canSend = !state.isSending && state.draft.trim().isNotEmpty;
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
-        showCompactLayout ? 14 : 22,
+        widget.showCompactLayout ? 14 : 22,
         14,
-        showCompactLayout ? 14 : 22,
+        widget.showCompactLayout ? 14 : 22,
         18,
       ),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: ManfredColors.borderSubtle)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          WorkspaceIconButton(
-            icon: Icons.add_rounded,
-            tooltip: 'Attach',
-            onTap: () {},
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: ManfredColors.panelAltBackground,
-                borderRadius: BorderRadius.circular(ManfredShapes.inputRadius),
-                border: Border.all(color: ManfredColors.borderSubtle),
-              ),
-              child: Text(
-                'Napisz wiadomość do sesji...',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: ManfredColors.textMuted,
+          if (state.errorMessage != null) ...<Widget>[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  state.errorMessage!,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: ManfredColors.accentRed,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          WorkspaceIconButton(
-            icon: Icons.send_rounded,
-            tooltip: 'Send',
-            isPrimary: true,
-            onTap: () {},
+          ],
+          Row(
+            children: <Widget>[
+              WorkspaceIconButton(
+                icon: Icons.add_rounded,
+                tooltip: 'Attach',
+                onTap: () {},
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: ManfredColors.panelAltBackground,
+                    borderRadius: BorderRadius.circular(
+                      ManfredShapes.inputRadius,
+                    ),
+                    border: Border.all(color: ManfredColors.borderSubtle),
+                  ),
+                  child: TextField(
+                    controller: _controller,
+                    minLines: 1,
+                    maxLines: 6,
+                    textInputAction: TextInputAction.send,
+                    onChanged: ref
+                        .read(composerControllerProvider.notifier)
+                        .updateDraft,
+                    onSubmitted: (_) {
+                      if (canSend) {
+                        ref.read(composerControllerProvider.notifier).send();
+                      }
+                    },
+                    decoration: const InputDecoration(
+                      hintText: 'Napisz wiadomość do sesji...',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              IgnorePointer(
+                ignoring: !canSend,
+                child: Opacity(
+                  opacity: canSend ? 1 : 0.45,
+                  child: WorkspaceIconButton(
+                    icon: state.isSending
+                        ? Icons.hourglass_top_rounded
+                        : Icons.send_rounded,
+                    tooltip: 'Send',
+                    isPrimary: true,
+                    onTap: () {
+                      ref.read(composerControllerProvider.notifier).send();
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
