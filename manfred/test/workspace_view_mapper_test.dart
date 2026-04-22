@@ -25,6 +25,7 @@ void main() {
             model: 'openrouter:test',
             waitingFor: <Map<String, Object?>>[
               <String, Object?>{
+                'call_id': 'call-1',
                 'type': 'agent',
                 'name': 'delegate',
                 'description': 'Potrzebuję docelowej grupy użytkowników.',
@@ -95,6 +96,15 @@ void main() {
         thread.entries.whereType<UserPingConversationEntryMock>().single.task,
         'Potrzebuję docelowej grupy użytkowników.',
       );
+      expect(view.replyTarget, isNotNull);
+      expect(view.replyTarget?.deliveryAgentId, 'agent-1');
+      expect(view.replyTarget?.deliveryCallId, 'call-1');
+      expect(view.replyTarget?.waitingAgentId, 'worker-1');
+      expect(view.replyTarget?.agentName, 'research');
+      expect(
+        view.replyTarget?.description,
+        'Potrzebuję docelowej grupy użytkowników.',
+      );
     },
   );
 
@@ -154,5 +164,144 @@ void main() {
     );
     expect(toolEntry.outputJson, contains('"hits": 3'));
     expect(view.threads, isEmpty);
+    expect(view.replyTarget, isNull);
+  });
+
+  test('maps answered ask_user in a thread to a user reply and clears waiting', () {
+    final view = buildSessionViewMock(
+      SessionDetails(
+        session: SessionSummary(
+          id: 'session-answered',
+          userId: 'user-1',
+          title: 'answered-ask-user',
+          status: 'active',
+          createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+          updatedAt: DateTime.parse('2026-04-22T09:03:00Z'),
+        ),
+        rootAgent: const RootAgentSummary(
+          id: 'agent-1',
+          name: 'Manfred',
+          status: 'active',
+          model: 'openrouter:test',
+          waitingFor: <Map<String, Object?>>[
+            <String, Object?>{
+              'call_id': 'call-1',
+              'type': 'agent',
+              'name': 'delegate',
+              'description': 'Potrzebuję docelowej grupy użytkowników.',
+              'agent_id': 'worker-1',
+            },
+          ],
+        ),
+        items: <SessionItem>[
+          SessionToolCallItem(
+            id: 'delegate-call',
+            agentId: 'agent-1',
+            sequence: 1,
+            createdAt: DateTime.parse('2026-04-22T09:00:30Z'),
+            callId: 'call-1',
+            name: 'delegate',
+            arguments: <String, Object?>{
+              'agent_name': 'research',
+              'task': 'Sprawdź założenia person użytkowników.',
+            },
+          ),
+          SessionMessageItem(
+            id: 'worker-input',
+            agentId: 'worker-1',
+            sequence: 1,
+            createdAt: DateTime.parse('2026-04-22T09:01:00Z'),
+            role: 'user',
+            content: 'Sprawdź założenia person użytkowników.',
+          ),
+          SessionToolCallItem(
+            id: 'ask-user-call',
+            agentId: 'worker-1',
+            sequence: 2,
+            createdAt: DateTime.parse('2026-04-22T09:02:00Z'),
+            callId: 'call-2',
+            name: 'ask_user',
+            arguments: <String, Object?>{
+              'description': 'Potrzebuję docelowej grupy użytkowników.',
+            },
+          ),
+          SessionToolResultItem(
+            id: 'ask-user-output',
+            agentId: 'worker-1',
+            sequence: 3,
+            createdAt: DateTime.parse('2026-04-22T09:02:30Z'),
+            callId: 'call-2',
+            name: 'ask_user',
+            toolResult: <String, Object?>{
+              'ok': true,
+              'output': 'To jest produkt dla małych zespołów rekrutacyjnych.',
+            },
+            isError: false,
+          ),
+        ],
+      ),
+      currentUserName: 'NetHerman2440',
+    );
+
+    final threadEntry = view.entries
+        .whereType<AgentThreadConversationEntryMock>()
+        .single;
+    expect(
+      threadEntry.statusLabel,
+      'W tym wątku nie ma nowych wiadomości.',
+    );
+
+    final thread = view.threads.single;
+    expect(
+      thread.entries.whereType<UserPingConversationEntryMock>().single.task,
+      'Potrzebuję docelowej grupy użytkowników.',
+    );
+    expect(
+      thread.entries.whereType<UserConversationEntryMock>().single.author,
+      'NetHerman2440',
+    );
+    expect(
+      thread.entries.whereType<UserConversationEntryMock>().single.body,
+      'To jest produkt dla małych zespołów rekrutacyjnych.',
+    );
+    expect(view.replyTarget, isNull);
+  });
+
+  test('maps root ask_user waiting into a composer reply target', () {
+    final view = buildSessionViewMock(
+      SessionDetails(
+        session: SessionSummary(
+          id: 'session-3',
+          userId: 'user-1',
+          title: 'root-ask-user',
+          status: 'active',
+          createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+          updatedAt: DateTime.parse('2026-04-22T09:01:00Z'),
+        ),
+        rootAgent: const RootAgentSummary(
+          id: 'agent-root',
+          name: 'Manfred',
+          status: 'waiting',
+          model: 'openrouter:test',
+          waitingFor: <Map<String, Object?>>[
+            <String, Object?>{
+              'call_id': 'call-human',
+              'type': 'human',
+              'name': 'ask_user',
+              'description': 'Doprecyzuj lokalizację zamku.',
+              'agent_id': 'agent-root',
+            },
+          ],
+        ),
+        items: const <SessionItem>[],
+      ),
+      currentUserName: 'NetHerman2440',
+    );
+
+    expect(view.replyTarget, isNotNull);
+    expect(view.replyTarget?.deliveryAgentId, 'agent-root');
+    expect(view.replyTarget?.agentName, 'Manfred');
+    expect(view.replyTarget?.deliveryCallId, 'call-human');
+    expect(view.replyTarget?.toolName, 'ask_user');
   });
 }

@@ -3,13 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../features/chat/application/composer_controller.dart';
 import '../../../../features/chat/domain/composer_state.dart';
+import '../../../mock/manfred_mock_data.dart';
 import '../../../theme/manfred_theme.dart';
 import 'workspace_icon_button.dart';
 
 class ComposerMock extends ConsumerStatefulWidget {
-  const ComposerMock({super.key, required this.showCompactLayout});
+  const ComposerMock({
+    super.key,
+    required this.showCompactLayout,
+    this.replyTarget,
+  });
 
   final bool showCompactLayout;
+  final ComposerReplyTargetMock? replyTarget;
 
   @override
   ConsumerState<ComposerMock> createState() => _ComposerMockState();
@@ -48,6 +54,10 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
     final state = ref.watch(composerControllerProvider);
     final canSend = !state.isSending && state.draft.trim().isNotEmpty;
     final textTheme = Theme.of(context).textTheme;
+    final replyTarget = widget.replyTarget;
+    final hintText = replyTarget == null
+        ? 'Napisz wiadomość do sesji...'
+        : 'Napisz odpowiedź do ${replyTarget.agentLabel}';
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -62,6 +72,13 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
+          if (replyTarget != null) ...<Widget>[
+            _ReplyTargetBanner(
+              replyTarget: replyTarget,
+              showCompactLayout: widget.showCompactLayout,
+            ),
+            const SizedBox(height: 10),
+          ],
           if (state.errorMessage != null) ...<Widget>[
             Align(
               alignment: Alignment.centerLeft,
@@ -103,13 +120,18 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
                         .updateDraft,
                     onSubmitted: (_) {
                       if (canSend) {
-                        ref.read(composerControllerProvider.notifier).send();
+                        ref
+                            .read(composerControllerProvider.notifier)
+                            .send(
+                              deliveryAgentId: replyTarget?.deliveryAgentId,
+                              deliveryCallId: replyTarget?.deliveryCallId,
+                            );
                       }
                     },
-                    decoration: const InputDecoration(
-                      hintText: 'Napisz wiadomość do sesji...',
+                    decoration: InputDecoration(
+                      hintText: hintText,
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
                       ),
@@ -129,12 +151,66 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
                     tooltip: 'Send',
                     isPrimary: true,
                     onTap: () {
-                      ref.read(composerControllerProvider.notifier).send();
+                      ref
+                          .read(composerControllerProvider.notifier)
+                          .send(
+                            deliveryAgentId: replyTarget?.deliveryAgentId,
+                            deliveryCallId: replyTarget?.deliveryCallId,
+                          );
                     },
                   ),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReplyTargetBanner extends StatelessWidget {
+  const _ReplyTargetBanner({
+    required this.replyTarget,
+    required this.showCompactLayout,
+  });
+
+  final ComposerReplyTargetMock replyTarget;
+  final bool showCompactLayout;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: showCompactLayout ? 12 : 14,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: ManfredColors.panelAltBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ManfredColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            'Odpowiadasz do ${replyTarget.agentLabel}',
+            style: textTheme.labelLarge?.copyWith(
+              color: ManfredColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            replyTarget.description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.bodySmall?.copyWith(
+              color: ManfredColors.textSecondary,
+            ),
           ),
         ],
       ),

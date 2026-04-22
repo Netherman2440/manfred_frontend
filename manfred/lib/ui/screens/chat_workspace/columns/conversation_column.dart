@@ -66,7 +66,10 @@ class ConversationColumn extends StatelessWidget {
             ),
           },
         ),
-        ComposerMock(showCompactLayout: showCompactHeader),
+        ComposerMock(
+          showCompactLayout: showCompactHeader,
+          replyTarget: sessionView.replyTarget,
+        ),
       ],
     );
   }

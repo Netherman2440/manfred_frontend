@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/manfred_api_client.dart';
@@ -9,6 +12,12 @@ abstract class ChatRepository {
   Future<ChatMutationResult> sendMessage({
     required String message,
     String? sessionId,
+  });
+
+  Future<ChatMutationResult> deliverMessage({
+    required String agentId,
+    required String callId,
+    required String message,
   });
 }
 
@@ -38,6 +47,27 @@ class HttpChatRepository implements ChatRepository {
     }
 
     final payload = await _apiClient.postJson('/chat/completions', body: body);
+    return ChatMutationResultDto.fromJson(payload).toDomain();
+  }
+
+  @override
+  Future<ChatMutationResult> deliverMessage({
+    required String agentId,
+    required String callId,
+    required String message,
+  }) async {
+    debugPrint(
+      '[chat.deliver.request] agent_id=$agentId call_id=$callId message=${jsonEncode(message)}',
+    );
+    final payload = await _apiClient.postJson(
+      '/chat/agents/$agentId/deliver',
+      body: <String, Object?>{
+        'call_id': callId,
+        'output': message,
+        'is_error': false,
+      },
+    );
+    debugPrint('[chat.deliver.response] ${jsonEncode(payload)}');
     return ChatMutationResultDto.fromJson(payload).toDomain();
   }
 }

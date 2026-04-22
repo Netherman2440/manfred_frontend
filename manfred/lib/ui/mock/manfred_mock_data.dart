@@ -70,26 +70,55 @@ class SessionViewMock {
     required this.rootAgent,
     required this.entries,
     this.threads = const <ConversationThreadMock>[],
+    this.replyTarget,
   });
 
   final String title;
   final String rootAgent;
   final List<ConversationEntryMock> entries;
   final List<ConversationThreadMock> threads;
+  final ComposerReplyTargetMock? replyTarget;
 
   SessionViewMock copyWith({
     String? title,
     String? rootAgent,
     List<ConversationEntryMock>? entries,
     List<ConversationThreadMock>? threads,
+    ComposerReplyTargetMock? replyTarget,
+    bool clearReplyTarget = false,
   }) {
     return SessionViewMock(
       title: title ?? this.title,
       rootAgent: rootAgent ?? this.rootAgent,
       entries: entries ?? this.entries,
       threads: threads ?? this.threads,
+      replyTarget: clearReplyTarget ? null : replyTarget ?? this.replyTarget,
     );
   }
+}
+
+@immutable
+class ComposerReplyTargetMock {
+  const ComposerReplyTargetMock({
+    required this.deliveryAgentId,
+    required this.deliveryCallId,
+    required this.agentName,
+    required this.waitingType,
+    required this.toolName,
+    required this.description,
+    this.waitingAgentId,
+  });
+
+  final String deliveryAgentId;
+  final String deliveryCallId;
+  final String agentName;
+  final String waitingType;
+  final String toolName;
+  final String description;
+  final String? waitingAgentId;
+
+  String get agentLabel =>
+      agentName.startsWith('@') ? agentName : '@$agentName';
 }
 
 @immutable

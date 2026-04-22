@@ -46,7 +46,8 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
   static const double _agentWidth = 92;
   static const double _minSessionsWidth = 200;
   static const double _collapsedSessionsWidth = 176;
-  static const double _expandedAdditionalWidth = 308;
+  static const double _defaultAdditionalWidth = 308;
+  static const double _minAdditionalWidth = 260;
   static const double _minConversationWidth = 420;
   static const double _resizeGapWidth = 12;
   static const double _floatingAccountBottom = 20;
@@ -54,6 +55,7 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
   bool _sessionsCollapsed = false;
   bool _additionalVisible = true;
   double _sessionsWidth = _minSessionsWidth;
+  double _additionalWidth = _defaultAdditionalWidth;
   String? _selectedThreadId;
 
   @override
@@ -86,8 +88,20 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
       builder: (context, constraints) {
         final showAdditionalPanel =
             widget.showAdditionalColumn && _additionalVisible;
+        final provisionalSessionsWidth = _sessionsCollapsed
+            ? _collapsedSessionsWidth
+            : _sessionsWidth;
+        final maxAdditionalWidth = _resolveMaxAdditionalWidth(
+          totalWidth: constraints.maxWidth,
+          sessionsWidth: provisionalSessionsWidth,
+          showAdditionalPanel: showAdditionalPanel,
+        );
+        final currentAdditionalWidth = showAdditionalPanel
+            ? _additionalWidth.clamp(_minAdditionalWidth, maxAdditionalWidth)
+            : 0.0;
         final maxSessionsWidth = _resolveMaxSessionsWidth(
           totalWidth: constraints.maxWidth,
+          additionalWidth: currentAdditionalWidth,
           showAdditionalPanel: showAdditionalPanel,
         );
         final currentSessionsWidth = _sessionsCollapsed
@@ -148,7 +162,8 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                         ),
                       ),
                       if (!_sessionsCollapsed)
-                        _SessionsResizeHandle(
+                        _ColumnResizeHandle(
+                          key: const ValueKey('sessions-resize-handle'),
                           onDragUpdate: (delta) {
                             setState(() {
                               _sessionsWidth = (_sessionsWidth + delta).clamp(
@@ -181,10 +196,24 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                         ),
                       ),
                       if (showAdditionalPanel)
+                        _ColumnResizeHandle(
+                          key: const ValueKey('additional-resize-handle'),
+                          onDragUpdate: (delta) {
+                            setState(() {
+                              _additionalWidth =
+                                  (_additionalWidth - delta).clamp(
+                                    _minAdditionalWidth,
+                                    maxAdditionalWidth,
+                                  );
+                            });
+                          },
+                        ),
+                      if (showAdditionalPanel)
                         AnimatedContainer(
+                          key: const ValueKey('additional-panel'),
                           duration: const Duration(milliseconds: 180),
                           curve: Curves.easeOut,
-                          width: _expandedAdditionalWidth,
+                          width: currentAdditionalWidth,
                           child: _ColumnFrame(
                             child: AdditionalColumn(
                               data: widget.workspace.rightRail,
@@ -219,16 +248,35 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
 
   double _resolveMaxSessionsWidth({
     required double totalWidth,
+    required double additionalWidth,
     required bool showAdditionalPanel,
   }) {
     final reservedWidth =
         (widget.showAgentColumn ? _agentWidth : 0) +
-        (showAdditionalPanel ? _expandedAdditionalWidth : 0) +
+        (showAdditionalPanel ? additionalWidth : 0) +
         _minConversationWidth +
-        _resizeGapWidth;
+        (_sessionsCollapsed ? 0 : _resizeGapWidth) +
+        (showAdditionalPanel ? _resizeGapWidth : 0);
 
     return (totalWidth - reservedWidth)
         .clamp(_minSessionsWidth, 520)
+        .toDouble();
+  }
+
+  double _resolveMaxAdditionalWidth({
+    required double totalWidth,
+    required double sessionsWidth,
+    required bool showAdditionalPanel,
+  }) {
+    final reservedWidth =
+        (widget.showAgentColumn ? _agentWidth : 0) +
+        sessionsWidth +
+        _minConversationWidth +
+        (_sessionsCollapsed ? 0 : _resizeGapWidth) +
+        (showAdditionalPanel ? _resizeGapWidth : 0);
+
+    return (totalWidth - reservedWidth)
+        .clamp(_minAdditionalWidth, 520)
         .toDouble();
   }
 }
@@ -253,16 +301,16 @@ class _ColumnFrame extends StatelessWidget {
   }
 }
 
-class _SessionsResizeHandle extends StatefulWidget {
-  const _SessionsResizeHandle({required this.onDragUpdate});
+class _ColumnResizeHandle extends StatefulWidget {
+  const _ColumnResizeHandle({super.key, required this.onDragUpdate});
 
   final ValueChanged<double> onDragUpdate;
 
   @override
-  State<_SessionsResizeHandle> createState() => _SessionsResizeHandleState();
+  State<_ColumnResizeHandle> createState() => _ColumnResizeHandleState();
 }
 
-class _SessionsResizeHandleState extends State<_SessionsResizeHandle> {
+class _ColumnResizeHandleState extends State<_ColumnResizeHandle> {
   static const double _handleWidth = 12;
 
   bool _isHovered = false;

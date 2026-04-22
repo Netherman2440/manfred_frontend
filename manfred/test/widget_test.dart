@@ -103,6 +103,12 @@ void main() {
             error: null,
           );
         },
+        onDeliver:
+            ({required agentId, required callId, required message}) async {
+              throw UnimplementedError(
+                'deliver should not be called in this test',
+              );
+            },
       ),
     );
 
@@ -222,6 +228,9 @@ void main() {
           error: null,
         );
       },
+      onDeliver: ({required agentId, required callId, required message}) async {
+        throw UnimplementedError('deliver should not be called in this test');
+      },
     );
 
     await _pumpWorkspace(
@@ -250,6 +259,173 @@ void main() {
     expect(find.text('created-session'), findsWidgets);
     expect(find.text('Pierwsza wiadomość'), findsOneWidget);
     expect(find.text('Nowa sesja została utworzona.'), findsOneWidget);
+  });
+
+  testWidgets('waiting reply shows banner and routes send through deliver', (
+    WidgetTester tester,
+  ) async {
+    final sessionsRepository = FakeSessionsRepository(
+      sessions: <SessionListEntry>[
+        SessionListEntry(
+          id: 'session-1',
+          userId: 'default-user',
+          title: 'delegate-preview',
+          status: 'active',
+          rootAgentId: 'agent-root',
+          rootAgentName: 'Manfred',
+          rootAgentStatus: 'waiting',
+          waitingForCount: 1,
+          lastMessagePreview: 'O jaki zamek chodzi?',
+          createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+          updatedAt: DateTime.parse('2026-04-22T09:02:00Z'),
+        ),
+      ],
+      details: <String, SessionDetails>{
+        'session-1': SessionDetails(
+          session: SessionSummary(
+            id: 'session-1',
+            userId: 'default-user',
+            title: 'delegate-preview',
+            status: 'active',
+            createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+            updatedAt: DateTime.parse('2026-04-22T09:02:00Z'),
+          ),
+          rootAgent: const RootAgentSummary(
+            id: 'agent-root',
+            name: 'Manfred',
+            status: 'waiting',
+            model: 'openrouter:test-model',
+            waitingFor: <Map<String, Object?>>[
+              <String, Object?>{
+                'call_id': 'call-parent',
+                'type': 'agent',
+                'name': 'delegate',
+                'description': 'O jaki zamek chodzi?',
+                'agent_id': 'agent-research',
+              },
+            ],
+          ),
+          items: <SessionItem>[
+            SessionToolCallItem(
+              id: 'delegate-call',
+              agentId: 'agent-root',
+              sequence: 1,
+              createdAt: DateTime.parse('2026-04-22T09:00:30Z'),
+              callId: 'call-parent',
+              name: 'delegate',
+              arguments: <String, Object?>{
+                'agent_name': 'research',
+                'task': 'Zbierz informacje o zamku.',
+              },
+            ),
+            SessionMessageItem(
+              id: 'worker-user',
+              agentId: 'agent-research',
+              sequence: 1,
+              createdAt: DateTime.parse('2026-04-22T09:01:00Z'),
+              role: 'user',
+              content: 'Zbierz informacje o zamku.',
+            ),
+            SessionToolCallItem(
+              id: 'worker-ask-user',
+              agentId: 'agent-research',
+              sequence: 2,
+              createdAt: DateTime.parse('2026-04-22T09:01:30Z'),
+              callId: 'call-child',
+              name: 'ask_user',
+              arguments: <String, Object?>{'question': 'O jaki zamek chodzi?'},
+            ),
+          ],
+        ),
+      },
+    );
+
+    var sendCalls = 0;
+    var deliverCalls = 0;
+    final chatRepository = FakeChatRepository(
+      onSend: ({required message, required sessionId}) async {
+        sendCalls += 1;
+        return const ChatMutationResult(
+          sessionId: 'session-1',
+          agentId: 'agent-root',
+          status: 'completed',
+          error: null,
+        );
+      },
+      onDeliver: ({required agentId, required callId, required message}) async {
+        deliverCalls += 1;
+        expect(agentId, 'agent-root');
+        expect(callId, 'call-parent');
+        expect(message, 'Chodzi o zamek w Malborku.');
+
+        sessionsRepository.setDetails(
+          'session-1',
+          SessionDetails(
+            session: SessionSummary(
+              id: 'session-1',
+              userId: 'default-user',
+              title: 'delegate-preview',
+              status: 'active',
+              createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+              updatedAt: DateTime.parse('2026-04-22T09:03:00Z'),
+            ),
+            rootAgent: const RootAgentSummary(
+              id: 'agent-root',
+              name: 'Manfred',
+              status: 'completed',
+              model: 'openrouter:test-model',
+              waitingFor: <Map<String, Object?>>[],
+            ),
+            items: <SessionItem>[
+              SessionMessageItem(
+                id: 'resolved-message',
+                agentId: 'agent-root',
+                sequence: 3,
+                createdAt: DateTime.parse('2026-04-22T09:03:00Z'),
+                role: 'assistant',
+                content: 'Dzięki, już szukam informacji o Malborku.',
+              ),
+            ],
+          ),
+        );
+
+        return const ChatMutationResult(
+          sessionId: 'session-1',
+          agentId: 'agent-root',
+          status: 'completed',
+          error: null,
+        );
+      },
+    );
+
+    await _pumpWorkspace(
+      tester,
+      sessionsRepository: sessionsRepository,
+      chatRepository: chatRepository,
+    );
+
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Odpowiadasz do @research'), findsOneWidget);
+    expect(find.text('O jaki zamek chodzi?'), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(TextField),
+      'Chodzi o zamek w Malborku.',
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(sendCalls, 0);
+    expect(deliverCalls, 1);
+    expect(find.text('Odpowiadasz do @research'), findsNothing);
+    expect(
+      find.text('Dzięki, już szukam informacji o Malborku.'),
+      findsOneWidget,
+    );
   });
 }
 
@@ -317,13 +493,19 @@ class FakeSessionsRepository implements SessionsRepository {
 }
 
 class FakeChatRepository implements ChatRepository {
-  FakeChatRepository({required this.onSend});
+  FakeChatRepository({required this.onSend, required this.onDeliver});
 
   final Future<ChatMutationResult> Function({
     required String message,
     required String? sessionId,
   })
   onSend;
+  final Future<ChatMutationResult> Function({
+    required String agentId,
+    required String callId,
+    required String message,
+  })
+  onDeliver;
 
   @override
   Future<ChatMutationResult> sendMessage({
@@ -331,5 +513,14 @@ class FakeChatRepository implements ChatRepository {
     String? sessionId,
   }) {
     return onSend(message: message, sessionId: sessionId);
+  }
+
+  @override
+  Future<ChatMutationResult> deliverMessage({
+    required String agentId,
+    required String callId,
+    required String message,
+  }) {
+    return onDeliver(agentId: agentId, callId: callId, message: message);
   }
 }

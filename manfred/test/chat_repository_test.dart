@@ -66,6 +66,44 @@ void main() {
     expect(requestBody['session_id'], 'session-1');
   });
 
+  test('deliverMessage posts agent delivery payload', () async {
+    late Uri requestUri;
+    late Map<String, dynamic> requestBody;
+    final client = MockClient((http.Request request) async {
+      requestUri = request.url;
+      requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          'session_id': 'session-1',
+          'agent_id': 'agent-child',
+          'status': 'waiting',
+        }),
+        200,
+        headers: const <String, String>{'content-type': 'application/json'},
+      );
+    });
+
+    final repository = HttpChatRepository(
+      apiClient: ManfredApiClient(
+        client: client,
+        baseUrl: 'http://127.0.0.1:3000/api/v1',
+      ),
+    );
+
+    await repository.deliverMessage(
+      agentId: 'agent-child',
+      callId: 'call-human',
+      message: 'Chodzi o Zamek Królewski na Wawelu.',
+    );
+
+    expect(requestUri.path, '/api/v1/chat/agents/agent-child/deliver');
+    expect(requestBody, <String, Object?>{
+      'call_id': 'call-human',
+      'output': 'Chodzi o Zamek Królewski na Wawelu.',
+      'is_error': false,
+    });
+  });
+
   test('postJson exposes HTTP status for non-JSON error responses', () async {
     final client = MockClient((http.Request request) async {
       return http.Response('Method Not Allowed', 405);

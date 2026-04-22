@@ -101,6 +101,12 @@ SessionViewMock buildSessionViewMock(
 
   final threads = threadBuilders.values.toList()
     ..sort((left, right) => _compareAgentItems(left, right));
+  final replyTarget = _buildReplyTarget(
+    waitingFor: details.rootAgent.waitingFor,
+    threadBuilders: threadBuilders,
+    rootAgentId: details.rootAgent.id,
+    rootAgentName: details.rootAgent.name,
+  );
 
   return SessionViewMock(
     title: details.session.displayTitle,
@@ -109,6 +115,7 @@ SessionViewMock buildSessionViewMock(
     threads: threads
         .map((thread) => thread.toThreadView())
         .toList(growable: false),
+    replyTarget: replyTarget,
   );
 }
 
@@ -358,13 +365,33 @@ ConversationEntryMock? _mapThreadToolCall({
   }
 
   if (item.name == 'ask_user') {
-    thread.markWaitingForUser();
-    return UserPingConversationEntryMock(
-      author: thread.agentName,
-      dateLabel: dateLabel,
-      timeLabel: timeLabel,
-      userName: currentUserName,
-      task: _extractAskUserPrompt(item.arguments),
+    final prompt = _extractAskUserPrompt(item.arguments);
+    final hasUserReply = linkedResult != null;
+    if (!hasUserReply) {
+      thread.markWaitingForUser();
+    } else {
+      thread.markAskUserAnswered();
+    }
+
+    thread.addEntry(
+      UserPingConversationEntryMock(
+        author: thread.agentName,
+        dateLabel: dateLabel,
+        timeLabel: timeLabel,
+        userName: currentUserName,
+        task: prompt,
+      ),
+    );
+
+    if (!hasUserReply) {
+      return null;
+    }
+
+    return UserConversationEntryMock(
+      author: currentUserName,
+      dateLabel: _formatDate(linkedResult.createdAt),
+      timeLabel: _formatTime(linkedResult.createdAt),
+      body: _extractAskUserReply(linkedResult.toolResult),
     );
   }
 
@@ -479,6 +506,10 @@ void _applyWaitingForToThreads({
       return builder;
     });
 
+    if (thread.hasAnsweredAskUser) {
+      continue;
+    }
+
     thread.markWaitingForUser();
     if (description.isEmpty) {
       continue;
@@ -502,6 +533,50 @@ void _applyWaitingForToThreads({
       ),
     );
   }
+}
+
+ComposerReplyTargetMock? _buildReplyTarget({
+  required List<Map<String, Object?>> waitingFor,
+  required Map<String, _ConversationThreadBuilder> threadBuilders,
+  required String rootAgentId,
+  required String rootAgentName,
+}) {
+  for (final waiting in waitingFor) {
+    final callId = waiting['call_id']?.toString().trim() ?? '';
+    final waitingAgentId = waiting['agent_id']?.toString().trim() ?? '';
+    if (callId.isEmpty) {
+      continue;
+    }
+    if (waitingAgentId.isNotEmpty &&
+        threadBuilders[waitingAgentId]?.hasAnsweredAskUser == true) {
+      continue;
+    }
+
+    final description = waiting['description']?.toString().trim() ?? '';
+    final toolName = waiting['name']?.toString().trim() ?? 'deliver';
+    final waitingType = waiting['type']?.toString().trim() ?? 'unknown';
+    final agentName = switch (waitingAgentId) {
+      _ when waitingAgentId.isEmpty || waitingAgentId == rootAgentId =>
+        rootAgentName,
+      _ =>
+        threadBuilders[waitingAgentId]?.agentName ??
+            _fallbackAgentName(waitingAgentId),
+    };
+
+    return ComposerReplyTargetMock(
+      deliveryAgentId: rootAgentId,
+      deliveryCallId: callId,
+      agentName: agentName,
+      waitingType: waitingType,
+      toolName: toolName,
+      description: description.isEmpty
+          ? 'Brak opisu oczekiwania.'
+          : description,
+      waitingAgentId: waitingAgentId.isEmpty ? null : waitingAgentId,
+    );
+  }
+
+  return null;
 }
 
 SessionToolResultItem? _linkedResult(List<SessionItem> items, int index) {
@@ -647,6 +722,39 @@ String _serialize(Object? value) {
   return jsonEncode(value);
 }
 
+String _extractAskUserReply(Object? value) {
+  final object = _asObjectMap(value);
+  if (object != null && object.containsKey('output')) {
+    final outputReply = _extractAskUserReply(object['output']);
+    if (outputReply != 'Brak odpowiedzi użytkownika.') {
+      return outputReply;
+    }
+  }
+  final directReply = object == null ? null : _readString(object, <String>[
+    'answer',
+    'response',
+    'message',
+    'content',
+    'text',
+    'reply',
+    'output',
+  ]);
+  if (directReply != null && directReply.trim().isNotEmpty) {
+    return directReply.trim();
+  }
+
+  if (value is String && value.trim().isNotEmpty) {
+    return value.trim();
+  }
+
+  final serialized = _serialize(value).trim();
+  if (serialized.isNotEmpty && serialized != '{}') {
+    return serialized;
+  }
+
+  return 'Brak odpowiedzi użytkownika.';
+}
+
 Map<String, Object?>? _asObjectMap(Object? value) {
   if (value is Map<String, Object?>) {
     return value;
@@ -664,6 +772,18 @@ Map<String, Object?>? _asObjectMap(Object? value) {
       }
     } on FormatException {
       return null;
+    }
+  }
+
+  return null;
+}
+
+String? _readString(Map<String, Object?> map, List<String> keys) {
+  for (final key in keys) {
+    final value = map[key];
+    final text = value?.toString().trim() ?? '';
+    if (text.isNotEmpty) {
+      return text;
     }
   }
 
@@ -756,6 +876,7 @@ class _ConversationThreadBuilder {
   int firstSequence;
   String? statusLabel;
   String placeholderLabel;
+  bool hasAnsweredAskUser = false;
   final List<ConversationEntryMock> entries = <ConversationEntryMock>[];
 
   void addEntry(ConversationEntryMock entry) {
@@ -764,6 +885,13 @@ class _ConversationThreadBuilder {
 
   void markWaitingForUser() {
     statusLabel = 'Czeka na odpowiedź użytkownika.';
+  }
+
+  void markAskUserAnswered() {
+    hasAnsweredAskUser = true;
+    if (statusLabel == 'Czeka na odpowiedź użytkownika.') {
+      statusLabel = null;
+    }
   }
 
   AgentThreadConversationEntryMock toConversationEntry() {
