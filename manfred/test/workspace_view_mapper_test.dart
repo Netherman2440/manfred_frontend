@@ -6,7 +6,7 @@ import 'package:manfred/ui/mock/manfred_mock_data.dart';
 
 void main() {
   test(
-    'maps delegate and waiting_for into conversational entries and thread',
+    'maps root items to the main transcript and subagent items to a thread',
     () {
       final view = buildSessionViewMock(
         SessionDetails(
@@ -35,6 +35,8 @@ void main() {
           items: <SessionItem>[
             SessionToolCallItem(
               id: 'delegate-call',
+              agentId: 'agent-1',
+              sequence: 2,
               createdAt: DateTime.parse('2026-04-22T09:01:00Z'),
               callId: 'call-1',
               name: 'delegate',
@@ -43,8 +45,18 @@ void main() {
                 'task': 'Sprawdź założenia person użytkowników.',
               },
             ),
+            SessionMessageItem(
+              id: 'worker-input',
+              agentId: 'worker-1',
+              sequence: 1,
+              createdAt: DateTime.parse('2026-04-22T09:01:01Z'),
+              role: 'user',
+              content: 'Sprawdź założenia person użytkowników.',
+            ),
             SessionToolCallItem(
               id: 'ask-user-call',
+              agentId: 'worker-1',
+              sequence: 2,
               createdAt: DateTime.parse('2026-04-22T09:02:00Z'),
               callId: 'call-2',
               name: 'ask_user',
@@ -64,16 +76,21 @@ void main() {
             .agentName,
         'research',
       );
+      expect(view.entries.whereType<UserConversationEntryMock>(), isEmpty);
       expect(view.entries.whereType<ToolCallConversationEntryMock>(), isEmpty);
 
       final threadEntry = view.entries
           .whereType<AgentThreadConversationEntryMock>()
           .single;
-      expect(threadEntry.threadId, 'delegate:call-1');
+      expect(threadEntry.threadId, 'agent:worker-1');
       expect(threadEntry.statusLabel, 'Czeka na odpowiedź użytkownika.');
 
       final thread = view.threads.single;
       expect(thread.agentName, 'research');
+      expect(
+        thread.entries.whereType<AgentConversationEntryMock>().single.body,
+        'Sprawdź założenia person użytkowników.',
+      );
       expect(
         thread.entries.whereType<UserPingConversationEntryMock>().single.task,
         'Potrzebuję docelowej grupy użytkowników.',
@@ -102,6 +119,8 @@ void main() {
         items: <SessionItem>[
           SessionToolCallItem(
             id: 'search-call',
+            agentId: 'agent-1',
+            sequence: 1,
             createdAt: DateTime.parse('2026-04-22T09:00:30Z'),
             callId: 'call-search',
             name: 'search_docs',
@@ -112,6 +131,8 @@ void main() {
           ),
           SessionToolResultItem(
             id: 'search-output',
+            agentId: 'agent-1',
+            sequence: 2,
             createdAt: DateTime.parse('2026-04-22T09:00:31Z'),
             callId: 'call-search',
             name: 'search_docs',

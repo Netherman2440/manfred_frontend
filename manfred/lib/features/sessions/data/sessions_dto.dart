@@ -223,6 +223,8 @@ class SessionItemDto {
   const SessionItemDto({
     required this.id,
     required this.type,
+    required this.agentId,
+    required this.sequence,
     required this.createdAt,
     this.role,
     this.content,
@@ -235,6 +237,8 @@ class SessionItemDto {
 
   final String id;
   final String type;
+  final String agentId;
+  final int sequence;
   final DateTime createdAt;
   final String? role;
   final String? content;
@@ -248,6 +252,8 @@ class SessionItemDto {
     return SessionItemDto(
       id: json['id'] as String? ?? '',
       type: json['type'] as String? ?? 'unknown',
+      agentId: json['agent_id'] as String? ?? '',
+      sequence: _readInt(json['sequence']),
       createdAt: _readDateTime(json['created_at']),
       role: json['role'] as String?,
       content: json['content'] as String?,
@@ -264,6 +270,8 @@ class SessionItemDto {
       case 'function_call':
         return SessionToolCallItem(
           id: id,
+          agentId: agentId,
+          sequence: sequence,
           createdAt: createdAt,
           callId: callId ?? '',
           name: name ?? 'tool',
@@ -272,6 +280,8 @@ class SessionItemDto {
       case 'function_call_output':
         return SessionToolResultItem(
           id: id,
+          agentId: agentId,
+          sequence: sequence,
           createdAt: createdAt,
           callId: callId ?? '',
           name: name ?? 'tool',
@@ -281,6 +291,8 @@ class SessionItemDto {
       case 'reasoning':
         return SessionReasoningItem(
           id: id,
+          agentId: agentId,
+          sequence: sequence,
           createdAt: createdAt,
           content: content,
         );
@@ -288,6 +300,8 @@ class SessionItemDto {
       default:
         return SessionMessageItem(
           id: id,
+          agentId: agentId,
+          sequence: sequence,
           createdAt: createdAt,
           role: role ?? 'assistant',
           content: content ?? '',

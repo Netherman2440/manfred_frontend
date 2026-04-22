@@ -50,12 +50,16 @@ void main() {
           items: <SessionItem>[
             SessionMessageItem(
               id: 'item-1',
+              agentId: 'agent-1',
+              sequence: 1,
               createdAt: DateTime.parse('2026-04-17T10:00:00Z'),
               role: 'user',
               content: 'Potrzebuję planu wdrożenia.',
             ),
             SessionToolCallItem(
               id: 'item-2',
+              agentId: 'agent-1',
+              sequence: 2,
               createdAt: DateTime.parse('2026-04-17T10:01:00Z'),
               callId: 'call-1',
               name: 'search_docs',
@@ -63,6 +67,8 @@ void main() {
             ),
             SessionToolResultItem(
               id: 'item-3',
+              agentId: 'agent-1',
+              sequence: 3,
               createdAt: DateTime.parse('2026-04-17T10:01:01Z'),
               callId: 'call-1',
               name: 'search_docs',
@@ -74,6 +80,8 @@ void main() {
             ),
             SessionMessageItem(
               id: 'item-4',
+              agentId: 'agent-1',
+              sequence: 4,
               createdAt: DateTime.parse('2026-04-17T10:02:00Z'),
               role: 'assistant',
               content: 'Mam już szkic integracji.',
@@ -189,12 +197,16 @@ void main() {
             items: <SessionItem>[
               SessionMessageItem(
                 id: 'created-user',
+                agentId: 'agent-created',
+                sequence: 1,
                 createdAt: DateTime.parse('2026-04-17T11:00:00Z'),
                 role: 'user',
                 content: message,
               ),
               SessionMessageItem(
                 id: 'created-assistant',
+                agentId: 'agent-created',
+                sequence: 2,
                 createdAt: DateTime.parse('2026-04-17T11:00:01Z'),
                 role: 'assistant',
                 content: 'Nowa sesja została utworzona.',
