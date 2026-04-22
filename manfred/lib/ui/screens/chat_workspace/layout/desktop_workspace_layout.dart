@@ -54,6 +54,7 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
   bool _sessionsCollapsed = false;
   bool _additionalVisible = true;
   double _sessionsWidth = _minSessionsWidth;
+  String? _selectedThreadId;
 
   @override
   void initState() {
@@ -68,6 +69,14 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
       _additionalVisible = false;
     } else if (!oldWidget.showAdditionalColumn && widget.showAdditionalColumn) {
       _additionalVisible = true;
+    }
+
+    final availableThreadIds = widget.workspace.sessionView.threads
+        .map((thread) => thread.id)
+        .toSet();
+    if (_selectedThreadId != null &&
+        !availableThreadIds.contains(_selectedThreadId)) {
+      _selectedThreadId = null;
     }
   }
 
@@ -158,6 +167,16 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                             isLoading: widget.conversationLoading,
                             errorMessage: widget.conversationErrorMessage,
                             onRetry: widget.onRetryConversation,
+                            selectedThreadId: _selectedThreadId,
+                            onSelectThread: (threadId) {
+                              setState(() {
+                                _selectedThreadId =
+                                    _selectedThreadId == threadId
+                                    ? null
+                                    : threadId;
+                                _additionalVisible = true;
+                              });
+                            },
                           ),
                         ),
                       ),
@@ -169,6 +188,13 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                           child: _ColumnFrame(
                             child: AdditionalColumn(
                               data: widget.workspace.rightRail,
+                              sessionView: widget.workspace.sessionView,
+                              selectedThreadId: _selectedThreadId,
+                              onClearThreadSelection: () {
+                                setState(() {
+                                  _selectedThreadId = null;
+                                });
+                              },
                             ),
                           ),
                         ),

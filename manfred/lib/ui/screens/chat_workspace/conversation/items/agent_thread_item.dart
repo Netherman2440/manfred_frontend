@@ -5,9 +5,16 @@ import '../../../../mock/manfred_mock_data.dart';
 import '../../../../theme/manfred_theme.dart';
 
 class AgentThreadItem extends StatelessWidget {
-  const AgentThreadItem({super.key, required this.entry});
+  const AgentThreadItem({
+    super.key,
+    required this.entry,
+    this.isSelected = false,
+    this.onTap,
+  });
 
   final AgentThreadConversationEntryMock entry;
+  final bool isSelected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -24,8 +31,8 @@ class AgentThreadItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                RichText(
-                  text: TextSpan(
+                SelectableText.rich(
+                  TextSpan(
                     style: textTheme.bodyMedium?.copyWith(
                       color: ManfredColors.textSecondary,
                     ),
@@ -56,53 +63,71 @@ class AgentThreadItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 HoverTileContainer(
-                  onTap: () {},
-                  padding: const EdgeInsets.all(14),
-                  baseColor: ManfredColors.panelAltBackground,
+                  onTap: onTap,
+                  baseColor: isSelected
+                      ? ManfredColors.panelOverlay
+                      : ManfredColors.panelAltBackground,
                   highlightColor: ManfredColors.messageHover,
                   borderRadius: ManfredShapes.panelRadius,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 6,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: <Widget>[
-                                Text(
-                                  entry.threadTitle,
-                                  style: textTheme.titleSmall?.copyWith(
-                                    color: ManfredColors.accentBlue,
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(
+                        ManfredShapes.panelRadius,
+                      ),
+                      border: Border.all(
+                        color: isSelected
+                            ? ManfredColors.accentBlue
+                            : ManfredColors.borderSubtle,
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: <Widget>[
+                                  Text(
+                                    entry.threadTitle,
+                                    style: textTheme.titleSmall?.copyWith(
+                                      color: ManfredColors.accentBlue,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  entry.threadMeta,
-                                  style: textTheme.titleSmall?.copyWith(
-                                    color: ManfredColors.accentBlue,
+                                  Text(
+                                    entry.threadMeta,
+                                    style: textTheme.labelSmall?.copyWith(
+                                      color: ManfredColors.textMuted,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              entry.statusLabel,
-                              style: textTheme.bodySmall?.copyWith(
-                                color: ManfredColors.textSecondary,
+                                ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              SelectableText(
+                                entry.statusLabel,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: ManfredColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Icon(
-                        Icons.keyboard_arrow_right_rounded,
-                        color: ManfredColors.textSecondary,
-                      ),
-                    ],
+                        const SizedBox(width: 12),
+                        Icon(
+                          isSelected
+                              ? Icons.keyboard_arrow_left_rounded
+                              : Icons.keyboard_arrow_right_rounded,
+                          color: isSelected
+                              ? ManfredColors.accentBlue
+                              : ManfredColors.textSecondary,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

@@ -56,15 +56,18 @@ class _ToolCallItemState extends State<ToolCallItem> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
+                          _ToolBadge(toolName: entry.toolName),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              entry.toolName,
-                              style: textTheme.titleSmall?.copyWith(
-                                color: ManfredColors.accentBlue,
+                              _isExpanded
+                                  ? 'Tool output and arguments'
+                                  : 'Tool preview',
+                              style: textTheme.labelSmall?.copyWith(
+                                color: ManfredColors.textMuted,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
                           Icon(
                             _isExpanded
                                 ? Icons.keyboard_arrow_down_rounded
@@ -73,19 +76,14 @@ class _ToolCallItemState extends State<ToolCallItem> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        entry.argumentsPreview,
-                        maxLines: _isExpanded ? null : 1,
-                        overflow: _isExpanded
-                            ? TextOverflow.visible
-                            : TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: ManfredColors.textSecondary,
+                      const SizedBox(height: 12),
+                      if (!_isExpanded)
+                        _CodeBlock(
+                          content: entry.argumentsPreview,
+                          maxLines: 3,
+                          dimmed: false,
                         ),
-                      ),
                       if (_isExpanded) ...<Widget>[
-                        const SizedBox(height: 14),
                         _JsonSection(
                           label: 'arguments',
                           content: entry.argumentsJson,
@@ -132,6 +130,30 @@ class _ToolCallItemState extends State<ToolCallItem> {
   }
 }
 
+class _ToolBadge extends StatelessWidget {
+  const _ToolBadge({required this.toolName});
+
+  final String toolName;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: ManfredColors.panelRaised,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: ManfredColors.borderStrong),
+      ),
+      child: Text(
+        toolName,
+        style: textTheme.labelLarge?.copyWith(color: ManfredColors.accentBlue),
+      ),
+    );
+  }
+}
+
 class _JsonSection extends StatelessWidget {
   const _JsonSection({
     required this.label,
@@ -155,24 +177,39 @@ class _JsonSection extends StatelessWidget {
           style: textTheme.labelSmall?.copyWith(color: ManfredColors.textMuted),
         ),
         const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: ManfredColors.panelRaised,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: ManfredColors.borderSubtle),
-          ),
-          child: Text(
-            content,
-            style: textTheme.bodySmall?.copyWith(
-              color: isPlaceholder
-                  ? ManfredColors.textMuted
-                  : ManfredColors.textPrimary,
-            ),
-          ),
-        ),
+        _CodeBlock(content: content, dimmed: isPlaceholder),
       ],
+    );
+  }
+}
+
+class _CodeBlock extends StatelessWidget {
+  const _CodeBlock({required this.content, this.dimmed = false, this.maxLines});
+
+  final String content;
+  final bool dimmed;
+  final int? maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: ManfredColors.panelRaised,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ManfredColors.borderSubtle),
+      ),
+      child: SelectableText(
+        content,
+        maxLines: maxLines,
+        style: textTheme.bodySmall?.copyWith(
+          color: dimmed ? ManfredColors.textMuted : ManfredColors.textPrimary,
+          height: 1.45,
+        ),
+      ),
     );
   }
 }

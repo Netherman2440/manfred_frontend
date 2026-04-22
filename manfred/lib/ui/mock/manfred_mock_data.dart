@@ -69,23 +69,50 @@ class SessionViewMock {
     required this.title,
     required this.rootAgent,
     required this.entries,
+    this.threads = const <ConversationThreadMock>[],
   });
 
   final String title;
   final String rootAgent;
   final List<ConversationEntryMock> entries;
+  final List<ConversationThreadMock> threads;
 
   SessionViewMock copyWith({
     String? title,
     String? rootAgent,
     List<ConversationEntryMock>? entries,
+    List<ConversationThreadMock>? threads,
   }) {
     return SessionViewMock(
       title: title ?? this.title,
       rootAgent: rootAgent ?? this.rootAgent,
       entries: entries ?? this.entries,
+      threads: threads ?? this.threads,
     );
   }
+}
+
+@immutable
+class ConversationThreadMock {
+  const ConversationThreadMock({
+    required this.id,
+    required this.agentName,
+    required this.title,
+    required this.task,
+    required this.statusLabel,
+    required this.entries,
+    this.metaLabel,
+    this.placeholderLabel,
+  });
+
+  final String id;
+  final String agentName;
+  final String title;
+  final String task;
+  final String statusLabel;
+  final List<ConversationEntryMock> entries;
+  final String? metaLabel;
+  final String? placeholderLabel;
 }
 
 @immutable
@@ -164,11 +191,27 @@ class AgentPingConversationEntryMock extends ConversationEntryMock {
 }
 
 @immutable
+class UserPingConversationEntryMock extends ConversationEntryMock {
+  const UserPingConversationEntryMock({
+    required super.dateLabel,
+    required super.timeLabel,
+    required this.author,
+    required this.userName,
+    required this.task,
+  });
+
+  final String author;
+  final String userName;
+  final String task;
+}
+
+@immutable
 class AgentThreadConversationEntryMock extends ConversationEntryMock {
   const AgentThreadConversationEntryMock({
     required super.dateLabel,
     required super.timeLabel,
     required this.author,
+    required this.threadId,
     required this.agentName,
     required this.taskPreview,
     required this.threadTitle,
@@ -177,6 +220,7 @@ class AgentThreadConversationEntryMock extends ConversationEntryMock {
   });
 
   final String author;
+  final String threadId;
   final String agentName;
   final String taskPreview;
   final String threadTitle;
@@ -310,26 +354,45 @@ final class ManfredMockData {
           agentName: 'research',
           task: 'Znajdź informacje o historii zamku lubelskiego.',
         ),
-        ToolCallConversationEntryMock(
-          author: 'Manfred',
-          dateLabel: '15.04.2026',
-          timeLabel: '09:26',
-          toolName: 'delegate',
-          argumentsPreview:
-              '{"agent_name":"research","task":"Znajdź informacje o historii zamku lubelskiego."}',
-          argumentsJson:
-              '{\n  "agent_name": "research",\n  "task": "Znajdź informacje o historii zamku lubelskiego."\n}',
-          isOutputPending: true,
-        ),
         AgentThreadConversationEntryMock(
           author: 'research',
           dateLabel: '15.04.2026',
           timeLabel: '09:27',
+          threadId: 'thread-research',
           agentName: 'research',
           taskPreview: 'Znajdź informacje o historii zamku lubelskiego.',
           threadTitle: 'Znajdź informacje o historii zamku lubelskim...',
           threadMeta: '92 wiadomości',
           statusLabel: 'W tym wątku nie ma nowych wiadomości.',
+        ),
+      ],
+      threads: <ConversationThreadMock>[
+        ConversationThreadMock(
+          id: 'thread-research',
+          agentName: 'research',
+          title: 'Thread research',
+          task: 'Znajdź informacje o historii zamku lubelskiego.',
+          statusLabel: 'Research czeka na kolejny krok.',
+          metaLabel: '92 wiadomości',
+          placeholderLabel:
+              'Ten widok pokaże pełny transcript delegowanego agenta, gdy backend udostępni precyzyjne grupowanie itemów.',
+          entries: <ConversationEntryMock>[
+            AgentPingConversationEntryMock(
+              author: 'Manfred',
+              dateLabel: '15.04.2026',
+              timeLabel: '09:26',
+              agentName: 'research',
+              task: 'Znajdź informacje o historii zamku lubelskiego.',
+            ),
+            UserPingConversationEntryMock(
+              author: 'research',
+              dateLabel: '15.04.2026',
+              timeLabel: '09:27',
+              userName: 'NetHerman2440',
+              task:
+                  'Doprecyzuj, czy chcesz historię architektury czy wydarzeń.',
+            ),
+          ],
         ),
       ],
     ),

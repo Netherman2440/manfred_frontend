@@ -149,6 +149,7 @@ class ChatWorkspacePage extends ConsumerWidget {
         title: 'New session',
         rootAgent: 'Manfred',
         entries: <ConversationEntryMock>[],
+        threads: <ConversationThreadMock>[],
       );
     }
 
@@ -172,6 +173,7 @@ class ChatWorkspacePage extends ConsumerWidget {
             body: 'Nie udało się załadować historii sesji.',
           ),
         ],
+        threads: const <ConversationThreadMock>[],
       );
     }
 
@@ -187,6 +189,7 @@ class ChatWorkspacePage extends ConsumerWidget {
             body: 'Ładowanie historii sesji...',
           ),
         ],
+        threads: const <ConversationThreadMock>[],
       );
     }
 
@@ -202,6 +205,7 @@ class ChatWorkspacePage extends ConsumerWidget {
             body: 'Brak sesji. Zacznij od nowej wiadomości.',
           ),
         ],
+        threads: <ConversationThreadMock>[],
       );
     }
 
