@@ -108,7 +108,7 @@ class AgentThreadItem extends StatelessWidget {
                                 ],
                               ),
                               const SizedBox(height: 6),
-                              SelectableText(
+                              Text(
                                 entry.statusLabel,
                                 style: textTheme.bodySmall?.copyWith(
                                   color: ManfredColors.textSecondary,

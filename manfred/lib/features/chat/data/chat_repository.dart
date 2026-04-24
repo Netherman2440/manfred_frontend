@@ -112,7 +112,7 @@ class HttpChatRepository implements ChatRepository {
           );
           break;
         default:
-          continue;
+          break;
       }
     }
   }
@@ -123,9 +123,11 @@ class HttpChatRepository implements ChatRepository {
     required String callId,
     required String message,
   }) async {
-    debugPrint(
-      '[chat.deliver.request] agent_id=$agentId call_id=$callId message=${jsonEncode(message)}',
-    );
+    if (kDebugMode) {
+      debugPrint(
+        '[chat.deliver.request] agent_id=$agentId call_id=$callId output_length=${message.length}',
+      );
+    }
     final payload = await _apiClient.postJson(
       '/chat/agents/$agentId/deliver',
       body: <String, Object?>{
@@ -134,7 +136,11 @@ class HttpChatRepository implements ChatRepository {
         'is_error': false,
       },
     );
-    debugPrint('[chat.deliver.response] ${jsonEncode(payload)}');
+    if (kDebugMode) {
+      debugPrint(
+        '[chat.deliver.response] session_id=${payload['session_id'] ?? ''} agent_id=${payload['agent_id'] ?? ''} status=${payload['status'] ?? ''}',
+      );
+    }
     return ChatMutationResultDto.fromJson(payload).toDomain();
   }
 

@@ -483,11 +483,13 @@ void main() {
     );
 
     final streamController = StreamController<ChatStreamEvent>();
+    addTearDown(() async {
+      if (!streamController.isClosed) {
+        await streamController.close();
+      }
+    });
     var cancelCalls = 0;
     final chatRepository = FakeChatRepository(
-      onSend: ({required message, required sessionId}) async {
-        throw UnimplementedError('sync send should not be used in this test');
-      },
       onSendStream: ({required message, String? sessionId}) {
         expect(message, 'Pokaż stream.');
         expect(sessionId, 'session-1');
@@ -649,7 +651,7 @@ class FakeSessionsRepository implements SessionsRepository {
 
 class FakeChatRepository implements ChatRepository {
   FakeChatRepository({
-    required this.onSend,
+    this.onSend,
     this.onDeliver,
     this.onSendStream,
     this.onCancel,
@@ -658,7 +660,7 @@ class FakeChatRepository implements ChatRepository {
   final Future<ChatMutationResult> Function({
     required String message,
     required String? sessionId,
-  })
+  })?
   onSend;
   final Stream<ChatStreamEvent> Function({
     required String message,
@@ -679,7 +681,10 @@ class FakeChatRepository implements ChatRepository {
     required String message,
     String? sessionId,
   }) {
-    return onSend(message: message, sessionId: sessionId);
+    if (onSend == null) {
+      throw UnimplementedError('sendMessage should not be used in this test');
+    }
+    return onSend!(message: message, sessionId: sessionId);
   }
 
   @override

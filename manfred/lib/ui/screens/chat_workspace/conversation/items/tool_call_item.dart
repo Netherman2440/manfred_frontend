@@ -44,37 +44,45 @@ class _ToolCallItemState extends State<ToolCallItem> {
                   authorColor: ManfredColors.accentGreen,
                 ),
                 const SizedBox(height: 10),
-                HoverTileContainer(
-                  onTap: _toggleExpanded,
+                Container(
                   padding: const EdgeInsets.all(14),
-                  baseColor: ManfredColors.panelAltBackground,
-                  highlightColor: ManfredColors.messageHover,
-                  borderRadius: ManfredShapes.panelRadius,
+                  decoration: BoxDecoration(
+                    color: ManfredColors.panelAltBackground,
+                    borderRadius: BorderRadius.circular(
+                      ManfredShapes.panelRadius,
+                    ),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          _ToolBadge(toolName: entry.toolName),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _isExpanded
-                                  ? 'Tool output and arguments'
-                                  : 'Tool preview',
-                              style: textTheme.labelSmall?.copyWith(
-                                color: ManfredColors.textMuted,
+                      InkWell(
+                        onTap: _toggleExpanded,
+                        borderRadius: BorderRadius.circular(
+                          ManfredShapes.panelRadius,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            _ToolBadge(toolName: entry.toolName),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _isExpanded
+                                    ? 'Tool output and arguments'
+                                    : 'Tool preview',
+                                style: textTheme.labelSmall?.copyWith(
+                                  color: ManfredColors.textMuted,
+                                ),
                               ),
                             ),
-                          ),
-                          Icon(
-                            _isExpanded
-                                ? Icons.keyboard_arrow_down_rounded
-                                : Icons.keyboard_arrow_right_rounded,
-                            color: ManfredColors.textSecondary,
-                          ),
-                        ],
+                            Icon(
+                              _isExpanded
+                                  ? Icons.keyboard_arrow_down_rounded
+                                  : Icons.keyboard_arrow_right_rounded,
+                              color: ManfredColors.textSecondary,
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 12),
                       if (!_isExpanded)

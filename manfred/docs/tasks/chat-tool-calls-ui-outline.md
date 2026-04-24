@@ -12,7 +12,7 @@ Najważniejsze cele frontendowe:
 - przygotować UI pod subwątki delegowanych agentów.
 
 Dokument nadrzędny:
-- `/home/netherman/code/manfred/docs/chat-tool-calls-ui-outline.md`
+- `../../../docs/chat-tool-calls-ui-outline.md`
 
 ## Kontekst lokalny dla repo
 

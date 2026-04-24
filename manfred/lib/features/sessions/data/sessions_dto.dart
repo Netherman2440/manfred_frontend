@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../domain/session_details.dart';
 import '../domain/session_item.dart';
 import '../domain/session_list_entry.dart';
@@ -249,11 +251,30 @@ class SessionItemDto {
   final bool? isError;
 
   factory SessionItemDto.fromJson(Map<String, dynamic> json) {
+    final agentId = json['agent_id'] as String? ?? '';
+    if (agentId.isEmpty) {
+      _debugInvalidSessionItemField(
+        field: 'agent_id',
+        value: json['agent_id'],
+        json: json,
+      );
+    }
+
+    final sequenceRaw = json['sequence'];
+    final sequence = _readInt(sequenceRaw);
+    if (sequenceRaw is! num) {
+      _debugInvalidSessionItemField(
+        field: 'sequence',
+        value: sequenceRaw,
+        json: json,
+      );
+    }
+
     return SessionItemDto(
       id: json['id'] as String? ?? '',
       type: json['type'] as String? ?? 'unknown',
-      agentId: json['agent_id'] as String? ?? '',
-      sequence: _readInt(json['sequence']),
+      agentId: agentId,
+      sequence: sequence,
       createdAt: _readDateTime(json['created_at']),
       role: json['role'] as String?,
       content: json['content'] as String?,
@@ -328,4 +349,18 @@ int _readInt(Object? value) {
   }
 
   return 0;
+}
+
+void _debugInvalidSessionItemField({
+  required String field,
+  required Object? value,
+  required Map<String, dynamic> json,
+}) {
+  if (!kDebugMode) {
+    return;
+  }
+
+  debugPrint(
+    '[sessions.item.payload.invalid] field=$field value=$value payload=$json',
+  );
 }

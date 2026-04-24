@@ -57,7 +57,7 @@ class _ArtifactsView extends StatelessWidget {
       children: <Widget>[
         Text('Artifacts', style: textTheme.titleMedium),
         const SizedBox(height: 4),
-        Text('Pliki, watki i stan sesji', style: textTheme.bodySmall),
+        Text('Pliki, wątki i stan sesji', style: textTheme.bodySmall),
         const SizedBox(height: 18),
         Expanded(
           child: ListView(

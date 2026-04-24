@@ -61,62 +61,9 @@ class ManfredApiClient {
       );
     }
 
-    final dataLines = <String>[];
-    String? eventName;
-
-    SseMessage? flush() {
-      if (eventName == null && dataLines.isEmpty) {
-        return null;
-      }
-
-      final message = SseMessage(
-        event: eventName ?? 'message',
-        data: dataLines.join('\n'),
-      );
-      eventName = null;
-      dataLines.clear();
-      return message;
-    }
-
-    await for (final line
-        in response.stream
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())) {
-      if (line.isEmpty) {
-        final message = flush();
-        if (message != null) {
-          yield message;
-        }
-        continue;
-      }
-
-      if (line.startsWith(':')) {
-        continue;
-      }
-
-      final separatorIndex = line.indexOf(':');
-      final field = separatorIndex == -1
-          ? line
-          : line.substring(0, separatorIndex);
-      var value = separatorIndex == -1
-          ? ''
-          : line.substring(separatorIndex + 1);
-      if (value.startsWith(' ')) {
-        value = value.substring(1);
-      }
-
-      switch (field) {
-        case 'event':
-          eventName = value;
-        case 'data':
-          dataLines.add(value);
-      }
-    }
-
-    final trailingMessage = flush();
-    if (trailingMessage != null) {
-      yield trailingMessage;
-    }
+    yield* const SseMessageParser().bind(
+      response.stream.transform(utf8.decoder).transform(const LineSplitter()),
+    );
   }
 
   Uri _buildUri(String path) {

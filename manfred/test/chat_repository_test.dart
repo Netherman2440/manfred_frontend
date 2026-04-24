@@ -124,7 +124,9 @@ void main() {
   test(
     'sendMessageStream without session yields session bootstrap event',
     () async {
+      late http.BaseRequest request;
       final client = _StreamingClient((incoming) async {
+        request = incoming;
         return http.StreamedResponse(
           Stream<List<int>>.fromIterable(<List<int>>[
             utf8.encode('event: session\n'),
@@ -150,6 +152,9 @@ void main() {
           .sendMessageStream(message: 'hello')
           .toList();
 
+      final requestBody =
+          jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+      expect(requestBody.containsKey('session_id'), isFalse);
       expect(events[0], isA<ChatSessionStartedStreamEvent>());
       expect(
         (events[0] as ChatSessionStartedStreamEvent).sessionId,

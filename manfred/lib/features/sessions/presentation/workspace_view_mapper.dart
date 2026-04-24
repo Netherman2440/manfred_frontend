@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../../../ui/mock/manfred_mock_data.dart';
 import '../domain/session_details.dart';
 import '../domain/session_item.dart';
@@ -99,8 +101,7 @@ SessionViewMock buildSessionViewMock(
     ),
   ]..sort(_compareTimelineEntries);
 
-  final threads = threadBuilders.values.toList()
-    ..sort((left, right) => _compareAgentItems(left, right));
+  final threads = threadBuilders.values.toList()..sort(_compareAgentItems);
   final replyTarget = _buildReplyTarget(
     waitingFor: details.rootAgent.waitingFor,
     threadBuilders: threadBuilders,
@@ -458,12 +459,25 @@ void _matchThreadWithDelegate({
         if (current == null) {
           return candidate;
         }
-        return candidate.createdAt.isAfter(current.createdAt)
+        final byTime = candidate.createdAt.compareTo(current.createdAt);
+        if (byTime > 0) {
+          return candidate;
+        }
+        if (byTime < 0) {
+          return current;
+        }
+
+        return _comparePendingDelegates(candidate, current) <= 0
             ? candidate
             : current;
       });
 
   if (matched == null) {
+    if (kDebugMode) {
+      debugPrint(
+        '[workspace.thread.delegate.unmatched] agent_id=${thread.agentId} task=${thread.task}',
+      );
+    }
     return;
   }
 
@@ -581,20 +595,22 @@ ComposerReplyTargetMock? _buildReplyTarget({
 }
 
 SessionToolResultItem? _linkedResult(List<SessionItem> items, int index) {
-  if (index + 1 >= items.length) {
-    return null;
-  }
-
   final current = items[index];
-  final next = items[index + 1];
-  if (current is! SessionToolCallItem || next is! SessionToolResultItem) {
-    return null;
-  }
-  if (current.callId != next.callId) {
+  if (current is! SessionToolCallItem) {
     return null;
   }
 
-  return next;
+  for (var scanIndex = index + 1; scanIndex < items.length; scanIndex += 1) {
+    final candidate = items[scanIndex];
+    if (candidate is! SessionToolResultItem) {
+      continue;
+    }
+    if (current.callId == candidate.callId) {
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 List<SessionItem> _sortAgentItems(List<SessionItem> items) {
@@ -627,6 +643,18 @@ int _compareAgentItems(
   }
 
   return left.agentId.compareTo(right.agentId);
+}
+
+int _comparePendingDelegates(
+  _PendingDelegateCall left,
+  _PendingDelegateCall right,
+) {
+  final byAgent = left.agentName.compareTo(right.agentName);
+  if (byAgent != 0) {
+    return byAgent;
+  }
+
+  return left.task.compareTo(right.task);
 }
 
 int _compareTimelineEntries(_TimelineEntry left, _TimelineEntry right) {

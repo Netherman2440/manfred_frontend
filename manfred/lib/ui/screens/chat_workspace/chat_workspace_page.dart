@@ -164,14 +164,20 @@ class ChatWorkspacePage extends ConsumerWidget {
       return baseSessionView;
     }
 
-    final entries = <ConversationEntryMock>[...baseSessionView.entries];
+    final now = DateTime.now();
+    final dateLabel = _formatStreamingDate(now);
+    final timeLabel = _formatStreamingTime(now);
+    final baseEntries = detailsAsync.valueOrNull == null
+        ? const <ConversationEntryMock>[]
+        : baseSessionView.entries;
+    final entries = <ConversationEntryMock>[...baseEntries];
     if (composerState.pendingUserMessage != null &&
         composerState.pendingUserMessage!.isNotEmpty) {
       entries.add(
         UserConversationEntryMock(
           author: baseWorkspace.currentUser.name,
-          dateLabel: '',
-          timeLabel: '',
+          dateLabel: dateLabel,
+          timeLabel: timeLabel,
           body: composerState.pendingUserMessage!,
         ),
       );
@@ -179,8 +185,8 @@ class ChatWorkspacePage extends ConsumerWidget {
     entries.add(
       AgentConversationEntryMock(
         author: composerState.activeAgentName ?? rootAgentName,
-        dateLabel: '',
-        timeLabel: '',
+        dateLabel: dateLabel,
+        timeLabel: timeLabel,
         body: composerState.streamingText.isEmpty
             ? 'Generowanie odpowiedzi...'
             : composerState.streamingText,
@@ -279,5 +285,20 @@ class ChatWorkspacePage extends ConsumerWidget {
 
   String? _asyncErrorMessage(AsyncValue<dynamic> value) {
     return value.whenOrNull(error: (error, _) => error.toString());
+  }
+
+  String _formatStreamingDate(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final year = local.year.toString();
+    return '$day.$month.$year';
+  }
+
+  String _formatStreamingTime(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }

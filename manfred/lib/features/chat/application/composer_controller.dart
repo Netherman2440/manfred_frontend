@@ -66,23 +66,18 @@ class ComposerController extends Notifier<ComposerState> {
         );
         return;
       }
-      final result = shouldDeliver
-          ? await repository.deliverMessage(
-              agentId: deliveryAgentId,
-              callId: deliveryCallId,
-              message: trimmedDraft,
-            )
-          : await repository.sendMessage(
-              message: trimmedDraft,
-              sessionId: selection.sessionId,
-            );
+      final result = await repository.deliverMessage(
+        agentId: deliveryAgentId,
+        callId: deliveryCallId,
+        message: trimmedDraft,
+      );
 
       if (result.sessionId.isEmpty) {
         throw StateError('Backend did not return session_id.');
       }
 
       debugPrint(
-        '[composer.send.result] mode=${shouldDeliver ? 'deliver' : 'chat'} session_id=${result.sessionId} agent_id=${result.agentId} status=${result.status} error=${result.error ?? ''}',
+        '[composer.send.result] mode=deliver session_id=${result.sessionId} agent_id=${result.agentId} status=${result.status} error=${result.error ?? ''}',
       );
 
       ref.read(selectedSessionProvider.notifier).select(result.sessionId);
@@ -149,17 +144,19 @@ class ComposerController extends Notifier<ComposerState> {
     required String? sessionId,
     required String? rootAgentName,
   }) async {
-    state = state.copyWith(
-      draft: '',
-      isSending: false,
-      isStreaming: true,
-      isStopping: false,
-      pendingUserMessage: message,
-      streamingText: '',
-      activeSessionId: sessionId,
-      activeAgentName: rootAgentName,
-      clearErrorMessage: true,
-    );
+    state = state
+        .copyWith(clearActiveRun: true)
+        .copyWith(
+          draft: '',
+          isSending: false,
+          isStreaming: true,
+          isStopping: false,
+          pendingUserMessage: message,
+          streamingText: '',
+          activeSessionId: sessionId,
+          activeAgentName: rootAgentName,
+          clearErrorMessage: true,
+        );
 
     String? resolvedSessionId = sessionId;
     String? streamError;
@@ -194,7 +191,9 @@ class ComposerController extends Notifier<ComposerState> {
       debugPrint(
         '[composer.stream.api_error] status_code=${error.statusCode ?? ''} message=${error.message}',
       );
-      streamError = error.message;
+      if (!state.isStopping) {
+        streamError = error.message;
+      }
     } catch (_) {
       debugPrint(
         '[composer.stream.error] message=Nie udało się streamować odpowiedzi.',
@@ -205,9 +204,10 @@ class ComposerController extends Notifier<ComposerState> {
     }
 
     await _reconcileAfterStream(sessionId: resolvedSessionId);
+    final finalErrorMessage = streamError ?? state.errorMessage;
     state = const ComposerState.initial().copyWith(
-      errorMessage: streamError,
-      clearErrorMessage: streamError == null,
+      errorMessage: finalErrorMessage,
+      clearErrorMessage: finalErrorMessage == null,
     );
   }
 
@@ -220,8 +220,6 @@ class ComposerController extends Notifier<ComposerState> {
 
     final selectionController = ref.read(selectedSessionProvider.notifier);
     selectionController.select(sessionId);
-    ref.invalidate(sessionsListProvider);
-    ref.invalidate(sessionDetailsProvider);
 
     try {
       final userContext = ref.read(userContextProvider);
@@ -240,10 +238,10 @@ class ComposerController extends Notifier<ComposerState> {
       debugPrint(
         '[composer.stream.reconcile.error] message=Nie udało się odświeżyć listy sesji po streamie.',
       );
-    } finally {
-      ref.invalidate(sessionsListProvider);
-      ref.invalidate(sessionDetailsProvider);
     }
+
+    ref.invalidate(sessionsListProvider);
+    ref.invalidate(sessionDetailsProvider);
   }
 
   String? _resolveSessionSelection({
