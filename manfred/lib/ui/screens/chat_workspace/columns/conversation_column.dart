@@ -69,6 +69,7 @@ class ConversationColumn extends StatelessWidget {
         ComposerMock(
           showCompactLayout: showCompactHeader,
           replyTarget: sessionView.replyTarget,
+          rootAgentName: sessionView.rootAgent,
         ),
       ],
     );

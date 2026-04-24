@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_error.dart';
+import 'sse_client.dart';
 
 class ManfredApiClient {
   ManfredApiClient({required http.Client client, required String baseUrl})
@@ -33,6 +34,89 @@ class ManfredApiClient {
       body: jsonEncode(body),
     );
     return _decodeResponse(response);
+  }
+
+  Stream<SseMessage> postSse(
+    String path, {
+    required Map<String, Object?> body,
+  }) async* {
+    final request = http.Request('POST', _buildUri(path));
+    request.headers.addAll(const <String, String>{
+      'Accept': 'text/event-stream',
+      'Content-Type': 'application/json',
+    });
+    request.body = jsonEncode(body);
+
+    final response = await _client.send(request);
+    if (response.statusCode >= 400) {
+      final responseBody = (await response.stream.bytesToString()).trim();
+      final decodedBody = _tryDecodeJson(responseBody);
+      throw ApiError(
+        message: _extractErrorMessage(
+          decodedBody: decodedBody,
+          responseBody: responseBody,
+          statusCode: response.statusCode,
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final dataLines = <String>[];
+    String? eventName;
+
+    SseMessage? flush() {
+      if (eventName == null && dataLines.isEmpty) {
+        return null;
+      }
+
+      final message = SseMessage(
+        event: eventName ?? 'message',
+        data: dataLines.join('\n'),
+      );
+      eventName = null;
+      dataLines.clear();
+      return message;
+    }
+
+    await for (final line
+        in response.stream
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())) {
+      if (line.isEmpty) {
+        final message = flush();
+        if (message != null) {
+          yield message;
+        }
+        continue;
+      }
+
+      if (line.startsWith(':')) {
+        continue;
+      }
+
+      final separatorIndex = line.indexOf(':');
+      final field = separatorIndex == -1
+          ? line
+          : line.substring(0, separatorIndex);
+      var value = separatorIndex == -1
+          ? ''
+          : line.substring(separatorIndex + 1);
+      if (value.startsWith(' ')) {
+        value = value.substring(1);
+      }
+
+      switch (field) {
+        case 'event':
+          eventName = value;
+        case 'data':
+          dataLines.add(value);
+      }
+    }
+
+    final trailingMessage = flush();
+    if (trailingMessage != null) {
+      yield trailingMessage;
+    }
   }
 
   Uri _buildUri(String path) {

@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:manfred/core/api/api_error.dart';
 import 'package:manfred/core/api/manfred_api_client.dart';
 import 'package:manfred/features/chat/data/chat_repository.dart';
+import 'package:manfred/features/chat/domain/chat_stream_event.dart';
 
 void main() {
   test(
@@ -66,6 +67,97 @@ void main() {
     expect(requestBody['session_id'], 'session-1');
   });
 
+  test(
+    'sendMessageStream posts stream=true and yields parsed text deltas',
+    () async {
+      late http.BaseRequest request;
+      final client = _StreamingClient((incoming) async {
+        request = incoming;
+        return http.StreamedResponse(
+          Stream<List<int>>.fromIterable(<List<int>>[
+            utf8.encode('event: text_delta\n'),
+            utf8.encode('data: {"delta":"Cze"}\n\n'),
+            utf8.encode('event: text_delta\n'),
+            utf8.encode('data: {"delta":"ść"}\n\n'),
+            utf8.encode('event: done\n'),
+            utf8.encode('data: {"type":"done"}\n\n'),
+          ]),
+          200,
+          headers: const <String, String>{'content-type': 'text/event-stream'},
+        );
+      });
+
+      final repository = HttpChatRepository(
+        apiClient: ManfredApiClient(
+          client: client,
+          baseUrl: 'http://127.0.0.1:3000/api/v1',
+        ),
+      );
+
+      final events = await repository
+          .sendMessageStream(message: 'hello', sessionId: 'session-1')
+          .toList();
+
+      expect(request.url.path, '/api/v1/chat/completions');
+      expect(request.method, 'POST');
+      expect(
+        jsonDecode((request as http.Request).body) as Map<String, dynamic>,
+        <String, dynamic>{
+          'input': <Map<String, Object?>>[
+            <String, Object?>{
+              'type': 'message',
+              'role': 'user',
+              'content': 'hello',
+            },
+          ],
+          'session_id': 'session-1',
+          'stream': true,
+        },
+      );
+      expect(events.length, 3);
+      expect((events[0] as ChatTextDeltaStreamEvent).delta, 'Cze');
+      expect((events[1] as ChatTextDeltaStreamEvent).delta, 'ść');
+      expect(events[2], isA<ChatDoneStreamEvent>());
+    },
+  );
+
+  test(
+    'sendMessageStream without session yields session bootstrap event',
+    () async {
+      final client = _StreamingClient((incoming) async {
+        return http.StreamedResponse(
+          Stream<List<int>>.fromIterable(<List<int>>[
+            utf8.encode('event: session\n'),
+            utf8.encode(
+              'data: {"session_id":"session-created","agent_id":"agent-created"}\n\n',
+            ),
+            utf8.encode('event: done\n'),
+            utf8.encode('data: {"type":"done"}\n\n'),
+          ]),
+          200,
+          headers: const <String, String>{'content-type': 'text/event-stream'},
+        );
+      });
+
+      final repository = HttpChatRepository(
+        apiClient: ManfredApiClient(
+          client: client,
+          baseUrl: 'http://127.0.0.1:3000/api/v1',
+        ),
+      );
+
+      final events = await repository
+          .sendMessageStream(message: 'hello')
+          .toList();
+
+      expect(events[0], isA<ChatSessionStartedStreamEvent>());
+      expect(
+        (events[0] as ChatSessionStartedStreamEvent).sessionId,
+        'session-created',
+      );
+      expect(events[1], isA<ChatDoneStreamEvent>());
+    },
+  );
   test('deliverMessage posts agent delivery payload', () async {
     late Uri requestUri;
     late Map<String, dynamic> requestBody;
@@ -104,6 +196,36 @@ void main() {
     });
   });
 
+  test('cancelRun posts session cancel payload', () async {
+    late Uri requestUri;
+    late Map<String, dynamic> requestBody;
+    final client = MockClient((http.Request request) async {
+      requestUri = request.url;
+      requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode(<String, Object?>{
+          'session_id': 'session-1',
+          'agent_id': 'agent-1',
+          'status': 'cancelled',
+        }),
+        200,
+        headers: const <String, String>{'content-type': 'application/json'},
+      );
+    });
+
+    final repository = HttpChatRepository(
+      apiClient: ManfredApiClient(
+        client: client,
+        baseUrl: 'http://127.0.0.1:3000/api/v1',
+      ),
+    );
+
+    final result = await repository.cancelRun(sessionId: 'session-1');
+
+    expect(requestUri.path, '/api/v1/chat/sessions/session-1/cancel');
+    expect(requestBody, isEmpty);
+    expect(result.status, 'cancelled');
+  });
   test('postJson exposes HTTP status for non-JSON error responses', () async {
     final client = MockClient((http.Request request) async {
       return http.Response('Method Not Allowed', 405);
@@ -130,4 +252,16 @@ void main() {
       ),
     );
   });
+}
+
+class _StreamingClient extends http.BaseClient {
+  _StreamingClient(this._handler);
+
+  final Future<http.StreamedResponse> Function(http.BaseRequest request)
+  _handler;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    return _handler(request);
+  }
 }

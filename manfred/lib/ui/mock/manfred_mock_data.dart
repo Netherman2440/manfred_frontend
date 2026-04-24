@@ -69,12 +69,14 @@ class SessionViewMock {
     required this.title,
     required this.rootAgent,
     required this.entries,
+    this.rootAgentId,
     this.threads = const <ConversationThreadMock>[],
     this.replyTarget,
   });
 
   final String title;
   final String rootAgent;
+  final String? rootAgentId;
   final List<ConversationEntryMock> entries;
   final List<ConversationThreadMock> threads;
   final ComposerReplyTargetMock? replyTarget;
@@ -82,6 +84,7 @@ class SessionViewMock {
   SessionViewMock copyWith({
     String? title,
     String? rootAgent,
+    String? rootAgentId,
     List<ConversationEntryMock>? entries,
     List<ConversationThreadMock>? threads,
     ComposerReplyTargetMock? replyTarget,
@@ -90,6 +93,7 @@ class SessionViewMock {
     return SessionViewMock(
       title: title ?? this.title,
       rootAgent: rootAgent ?? this.rootAgent,
+      rootAgentId: rootAgentId ?? this.rootAgentId,
       entries: entries ?? this.entries,
       threads: threads ?? this.threads,
       replyTarget: clearReplyTarget ? null : replyTarget ?? this.replyTarget,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/chat/application/composer_controller.dart';
+import '../../../features/chat/domain/composer_state.dart';
 import '../../../features/sessions/application/session_details_provider.dart';
 import '../../../features/sessions/application/sessions_list_provider.dart';
 import '../../../features/sessions/application/selected_session_provider.dart';
@@ -22,6 +23,7 @@ class ChatWorkspacePage extends ConsumerWidget {
     final selection = ref.watch(selectedSessionProvider);
     final sessionsAsync = ref.watch(sessionsListProvider);
     final detailsAsync = ref.watch(sessionDetailsProvider);
+    final composerState = ref.watch(composerControllerProvider);
     final sessions = sessionsAsync.valueOrNull ?? const <SessionListEntry>[];
 
     _maybeSelectFirstSession(ref, selection, sessions);
@@ -33,12 +35,14 @@ class ChatWorkspacePage extends ConsumerWidget {
         detailsAsync.valueOrNull?.rootAgent.name ??
         selectedSession?.rootAgentName ??
         baseWorkspace.sessionView.rootAgent;
-    final sessionView = _buildCurrentSessionView(
+    final sessionView = _buildStreamingSessionView(
+      composerState: composerState,
       baseWorkspace: baseWorkspace,
       selection: selection,
       sessions: sessions,
       selectedSession: selectedSession,
       detailsAsync: detailsAsync,
+      rootAgentName: rootAgentName,
     );
     final workspace = baseWorkspace.copyWith(
       sessions: buildSessionMocks(
@@ -137,6 +141,55 @@ class ChatWorkspacePage extends ConsumerWidget {
     return null;
   }
 
+  SessionViewMock _buildStreamingSessionView({
+    required ComposerState composerState,
+    required WorkspaceMock baseWorkspace,
+    required SelectedSessionState selection,
+    required List<SessionListEntry> sessions,
+    required SessionListEntry? selectedSession,
+    required AsyncValue<SessionDetails?> detailsAsync,
+    required String rootAgentName,
+  }) {
+    final baseSessionView = _buildCurrentSessionView(
+      baseWorkspace: baseWorkspace,
+      selection: selection,
+      sessions: sessions,
+      selectedSession: selectedSession,
+      detailsAsync: detailsAsync,
+    );
+
+    if (!composerState.isStreaming ||
+        composerState.activeSessionId == null ||
+        composerState.activeSessionId != selection.sessionId) {
+      return baseSessionView;
+    }
+
+    final entries = <ConversationEntryMock>[...baseSessionView.entries];
+    if (composerState.pendingUserMessage != null &&
+        composerState.pendingUserMessage!.isNotEmpty) {
+      entries.add(
+        UserConversationEntryMock(
+          author: baseWorkspace.currentUser.name,
+          dateLabel: '',
+          timeLabel: '',
+          body: composerState.pendingUserMessage!,
+        ),
+      );
+    }
+    entries.add(
+      AgentConversationEntryMock(
+        author: composerState.activeAgentName ?? rootAgentName,
+        dateLabel: '',
+        timeLabel: '',
+        body: composerState.streamingText.isEmpty
+            ? 'Generowanie odpowiedzi...'
+            : composerState.streamingText,
+      ),
+    );
+
+    return baseSessionView.copyWith(entries: entries, clearReplyTarget: true);
+  }
+
   SessionViewMock _buildCurrentSessionView({
     required WorkspaceMock baseWorkspace,
     required SelectedSessionState selection,
@@ -165,6 +218,7 @@ class ChatWorkspacePage extends ConsumerWidget {
       return SessionViewMock(
         title: selectedSession?.displayTitle ?? 'Session',
         rootAgent: selectedSession?.rootAgentName ?? 'Manfred',
+        rootAgentId: selectedSession?.rootAgentId,
         entries: <ConversationEntryMock>[
           AgentConversationEntryMock(
             author: selectedSession?.rootAgentName ?? 'Manfred',
@@ -181,6 +235,7 @@ class ChatWorkspacePage extends ConsumerWidget {
       return SessionViewMock(
         title: selectedSession?.displayTitle ?? 'Session',
         rootAgent: selectedSession?.rootAgentName ?? 'Manfred',
+        rootAgentId: selectedSession?.rootAgentId,
         entries: <ConversationEntryMock>[
           AgentConversationEntryMock(
             author: selectedSession?.rootAgentName ?? 'Manfred',

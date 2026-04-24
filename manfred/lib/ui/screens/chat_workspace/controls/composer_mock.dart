@@ -12,10 +12,12 @@ class ComposerMock extends ConsumerStatefulWidget {
     super.key,
     required this.showCompactLayout,
     this.replyTarget,
+    this.rootAgentName,
   });
 
   final bool showCompactLayout;
   final ComposerReplyTargetMock? replyTarget;
+  final String? rootAgentName;
 
   @override
   ConsumerState<ComposerMock> createState() => _ComposerMockState();
@@ -52,9 +54,10 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
     });
 
     final state = ref.watch(composerControllerProvider);
-    final canSend = !state.isSending && state.draft.trim().isNotEmpty;
+    final canSend = !state.isBusy && state.draft.trim().isNotEmpty;
     final textTheme = Theme.of(context).textTheme;
     final replyTarget = widget.replyTarget;
+    final showStop = state.canStop;
     final hintText = replyTarget == null
         ? 'Napisz wiadomość do sesji...'
         : 'Napisz odpowiedź do ${replyTarget.agentLabel}';
@@ -112,6 +115,7 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
                   ),
                   child: TextField(
                     controller: _controller,
+                    enabled: !state.isBusy,
                     minLines: 1,
                     maxLines: 6,
                     textInputAction: TextInputAction.send,
@@ -125,6 +129,7 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
                             .send(
                               deliveryAgentId: replyTarget?.deliveryAgentId,
                               deliveryCallId: replyTarget?.deliveryCallId,
+                              rootAgentName: widget.rootAgentName,
                             );
                       }
                     },
@@ -140,27 +145,46 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
                 ),
               ),
               const SizedBox(width: 12),
-              IgnorePointer(
-                ignoring: !canSend,
-                child: Opacity(
-                  opacity: canSend ? 1 : 0.45,
-                  child: WorkspaceIconButton(
-                    icon: state.isSending
-                        ? Icons.hourglass_top_rounded
-                        : Icons.send_rounded,
-                    tooltip: 'Send',
-                    isPrimary: true,
-                    onTap: () {
-                      ref
-                          .read(composerControllerProvider.notifier)
-                          .send(
-                            deliveryAgentId: replyTarget?.deliveryAgentId,
-                            deliveryCallId: replyTarget?.deliveryCallId,
-                          );
-                    },
+              if (showStop)
+                IgnorePointer(
+                  ignoring: state.isStopping,
+                  child: Opacity(
+                    opacity: state.isStopping ? 0.55 : 1,
+                    child: WorkspaceIconButton(
+                      icon: state.isStopping
+                          ? Icons.hourglass_top_rounded
+                          : Icons.stop_rounded,
+                      tooltip: 'Stop',
+                      isPrimary: true,
+                      onTap: () {
+                        ref.read(composerControllerProvider.notifier).stop();
+                      },
+                    ),
+                  ),
+                )
+              else
+                IgnorePointer(
+                  ignoring: !canSend,
+                  child: Opacity(
+                    opacity: canSend ? 1 : 0.45,
+                    child: WorkspaceIconButton(
+                      icon: state.isSending
+                          ? Icons.hourglass_top_rounded
+                          : Icons.send_rounded,
+                      tooltip: 'Send',
+                      isPrimary: true,
+                      onTap: () {
+                        ref
+                            .read(composerControllerProvider.notifier)
+                            .send(
+                              deliveryAgentId: replyTarget?.deliveryAgentId,
+                              deliveryCallId: replyTarget?.deliveryCallId,
+                              rootAgentName: widget.rootAgentName,
+                            );
+                      },
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ],

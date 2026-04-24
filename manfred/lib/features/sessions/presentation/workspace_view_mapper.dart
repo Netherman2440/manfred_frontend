@@ -111,6 +111,7 @@ SessionViewMock buildSessionViewMock(
   return SessionViewMock(
     title: details.session.displayTitle,
     rootAgent: details.rootAgent.name,
+    rootAgentId: details.rootAgent.id,
     entries: timeline.map((item) => item.entry).toList(growable: false),
     threads: threads
         .map((thread) => thread.toThreadView())
@@ -730,15 +731,17 @@ String _extractAskUserReply(Object? value) {
       return outputReply;
     }
   }
-  final directReply = object == null ? null : _readString(object, <String>[
-    'answer',
-    'response',
-    'message',
-    'content',
-    'text',
-    'reply',
-    'output',
-  ]);
+  final directReply = object == null
+      ? null
+      : _readString(object, <String>[
+          'answer',
+          'response',
+          'message',
+          'content',
+          'text',
+          'reply',
+          'output',
+        ]);
   if (directReply != null && directReply.trim().isNotEmpty) {
     return directReply.trim();
   }
