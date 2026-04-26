@@ -31,14 +31,13 @@ class _HoverTileContainerState extends State<HoverTileContainer> {
 
   @override
   Widget build(BuildContext context) {
-    final isHighlighted = widget.isActive || _isHovered;
+    final isInteractive = widget.onTap != null;
+    final isHighlighted = widget.isActive || (isInteractive && _isHovered);
 
     return MouseRegion(
-      cursor: widget.onTap == null
-          ? MouseCursor.defer
-          : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      cursor: isInteractive ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: isInteractive ? (_) => setState(() => _isHovered = true) : null,
+      onExit: isInteractive ? (_) => setState(() => _isHovered = false) : null,
       child: Material(
         color: Colors.transparent,
         child: InkWell(

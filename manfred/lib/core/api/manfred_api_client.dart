@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_error.dart';
+import 'sse_client.dart';
 
 class ManfredApiClient {
   ManfredApiClient({required http.Client client, required String baseUrl})
@@ -33,6 +34,36 @@ class ManfredApiClient {
       body: jsonEncode(body),
     );
     return _decodeResponse(response);
+  }
+
+  Stream<SseMessage> postSse(
+    String path, {
+    required Map<String, Object?> body,
+  }) async* {
+    final request = http.Request('POST', _buildUri(path));
+    request.headers.addAll(const <String, String>{
+      'Accept': 'text/event-stream',
+      'Content-Type': 'application/json',
+    });
+    request.body = jsonEncode(body);
+
+    final response = await _client.send(request);
+    if (response.statusCode >= 400) {
+      final responseBody = (await response.stream.bytesToString()).trim();
+      final decodedBody = _tryDecodeJson(responseBody);
+      throw ApiError(
+        message: _extractErrorMessage(
+          decodedBody: decodedBody,
+          responseBody: responseBody,
+          statusCode: response.statusCode,
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+
+    yield* const SseMessageParser().bind(
+      response.stream.transform(utf8.decoder).transform(const LineSplitter()),
+    );
   }
 
   Uri _buildUri(String path) {

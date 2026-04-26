@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/chat/application/composer_controller.dart';
+import '../../../features/chat/domain/composer_state.dart';
 import '../../../features/sessions/application/session_details_provider.dart';
 import '../../../features/sessions/application/sessions_list_provider.dart';
 import '../../../features/sessions/application/selected_session_provider.dart';
@@ -22,6 +23,7 @@ class ChatWorkspacePage extends ConsumerWidget {
     final selection = ref.watch(selectedSessionProvider);
     final sessionsAsync = ref.watch(sessionsListProvider);
     final detailsAsync = ref.watch(sessionDetailsProvider);
+    final composerState = ref.watch(composerControllerProvider);
     final sessions = sessionsAsync.valueOrNull ?? const <SessionListEntry>[];
 
     _maybeSelectFirstSession(ref, selection, sessions);
@@ -33,12 +35,14 @@ class ChatWorkspacePage extends ConsumerWidget {
         detailsAsync.valueOrNull?.rootAgent.name ??
         selectedSession?.rootAgentName ??
         baseWorkspace.sessionView.rootAgent;
-    final sessionView = _buildCurrentSessionView(
+    final sessionView = _buildStreamingSessionView(
+      composerState: composerState,
       baseWorkspace: baseWorkspace,
       selection: selection,
       sessions: sessions,
       selectedSession: selectedSession,
       detailsAsync: detailsAsync,
+      rootAgentName: rootAgentName,
     );
     final workspace = baseWorkspace.copyWith(
       sessions: buildSessionMocks(
@@ -137,6 +141,61 @@ class ChatWorkspacePage extends ConsumerWidget {
     return null;
   }
 
+  SessionViewMock _buildStreamingSessionView({
+    required ComposerState composerState,
+    required WorkspaceMock baseWorkspace,
+    required SelectedSessionState selection,
+    required List<SessionListEntry> sessions,
+    required SessionListEntry? selectedSession,
+    required AsyncValue<SessionDetails?> detailsAsync,
+    required String rootAgentName,
+  }) {
+    final baseSessionView = _buildCurrentSessionView(
+      baseWorkspace: baseWorkspace,
+      selection: selection,
+      sessions: sessions,
+      selectedSession: selectedSession,
+      detailsAsync: detailsAsync,
+    );
+
+    if (!composerState.isStreaming ||
+        composerState.activeSessionId == null ||
+        composerState.activeSessionId != selection.sessionId) {
+      return baseSessionView;
+    }
+
+    final now = DateTime.now();
+    final dateLabel = _formatStreamingDate(now);
+    final timeLabel = _formatStreamingTime(now);
+    final baseEntries = detailsAsync.valueOrNull == null
+        ? const <ConversationEntryMock>[]
+        : baseSessionView.entries;
+    final entries = <ConversationEntryMock>[...baseEntries];
+    if (composerState.pendingUserMessage != null &&
+        composerState.pendingUserMessage!.isNotEmpty) {
+      entries.add(
+        UserConversationEntryMock(
+          author: baseWorkspace.currentUser.name,
+          dateLabel: dateLabel,
+          timeLabel: timeLabel,
+          body: composerState.pendingUserMessage!,
+        ),
+      );
+    }
+    entries.add(
+      AgentConversationEntryMock(
+        author: composerState.activeAgentName ?? rootAgentName,
+        dateLabel: dateLabel,
+        timeLabel: timeLabel,
+        body: composerState.streamingText.isEmpty
+            ? 'Generowanie odpowiedzi...'
+            : composerState.streamingText,
+      ),
+    );
+
+    return baseSessionView.copyWith(entries: entries, clearReplyTarget: true);
+  }
+
   SessionViewMock _buildCurrentSessionView({
     required WorkspaceMock baseWorkspace,
     required SelectedSessionState selection,
@@ -149,6 +208,7 @@ class ChatWorkspacePage extends ConsumerWidget {
         title: 'New session',
         rootAgent: 'Manfred',
         entries: <ConversationEntryMock>[],
+        threads: <ConversationThreadMock>[],
       );
     }
 
@@ -164,6 +224,7 @@ class ChatWorkspacePage extends ConsumerWidget {
       return SessionViewMock(
         title: selectedSession?.displayTitle ?? 'Session',
         rootAgent: selectedSession?.rootAgentName ?? 'Manfred',
+        rootAgentId: selectedSession?.rootAgentId,
         entries: <ConversationEntryMock>[
           AgentConversationEntryMock(
             author: selectedSession?.rootAgentName ?? 'Manfred',
@@ -172,6 +233,7 @@ class ChatWorkspacePage extends ConsumerWidget {
             body: 'Nie udało się załadować historii sesji.',
           ),
         ],
+        threads: const <ConversationThreadMock>[],
       );
     }
 
@@ -179,6 +241,7 @@ class ChatWorkspacePage extends ConsumerWidget {
       return SessionViewMock(
         title: selectedSession?.displayTitle ?? 'Session',
         rootAgent: selectedSession?.rootAgentName ?? 'Manfred',
+        rootAgentId: selectedSession?.rootAgentId,
         entries: <ConversationEntryMock>[
           AgentConversationEntryMock(
             author: selectedSession?.rootAgentName ?? 'Manfred',
@@ -187,6 +250,7 @@ class ChatWorkspacePage extends ConsumerWidget {
             body: 'Ładowanie historii sesji...',
           ),
         ],
+        threads: const <ConversationThreadMock>[],
       );
     }
 
@@ -202,6 +266,7 @@ class ChatWorkspacePage extends ConsumerWidget {
             body: 'Brak sesji. Zacznij od nowej wiadomości.',
           ),
         ],
+        threads: <ConversationThreadMock>[],
       );
     }
 
@@ -220,5 +285,20 @@ class ChatWorkspacePage extends ConsumerWidget {
 
   String? _asyncErrorMessage(AsyncValue<dynamic> value) {
     return value.whenOrNull(error: (error, _) => error.toString());
+  }
+
+  String _formatStreamingDate(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final year = local.year.toString();
+    return '$day.$month.$year';
+  }
+
+  String _formatStreamingTime(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }

@@ -36,8 +36,8 @@ class AgentPingItem extends StatelessWidget {
                   authorColor: ManfredColors.accentGreen,
                 ),
                 const SizedBox(height: 8),
-                RichText(
-                  text: TextSpan(
+                SelectableText.rich(
+                  TextSpan(
                     style: textTheme.bodyMedium,
                     children: <InlineSpan>[
                       TextSpan(

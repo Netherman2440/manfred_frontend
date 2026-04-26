@@ -2,17 +2,23 @@ sealed class SessionItem {
   const SessionItem({
     required this.id,
     required this.type,
+    required this.agentId,
+    required this.sequence,
     required this.createdAt,
   });
 
   final String id;
   final String type;
+  final String agentId;
+  final int sequence;
   final DateTime createdAt;
 }
 
 class SessionMessageItem extends SessionItem {
   const SessionMessageItem({
     required super.id,
+    required super.agentId,
+    required super.sequence,
     required super.createdAt,
     required this.role,
     required this.content,
@@ -25,6 +31,8 @@ class SessionMessageItem extends SessionItem {
 class SessionToolCallItem extends SessionItem {
   const SessionToolCallItem({
     required super.id,
+    required super.agentId,
+    required super.sequence,
     required super.createdAt,
     required this.callId,
     required this.name,
@@ -39,6 +47,8 @@ class SessionToolCallItem extends SessionItem {
 class SessionToolResultItem extends SessionItem {
   const SessionToolResultItem({
     required super.id,
+    required super.agentId,
+    required super.sequence,
     required super.createdAt,
     required this.callId,
     required this.name,
@@ -55,6 +65,8 @@ class SessionToolResultItem extends SessionItem {
 class SessionReasoningItem extends SessionItem {
   const SessionReasoningItem({
     required super.id,
+    required super.agentId,
+    required super.sequence,
     required super.createdAt,
     required this.content,
   }) : super(type: 'reasoning');

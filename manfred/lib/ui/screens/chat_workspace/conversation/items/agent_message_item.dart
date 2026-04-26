@@ -36,7 +36,7 @@ class AgentMessageItem extends StatelessWidget {
                   authorColor: ManfredColors.accentGreen,
                 ),
                 const SizedBox(height: 8),
-                Text(entry.body, style: textTheme.bodyMedium),
+                SelectableText(entry.body, style: textTheme.bodyMedium),
               ],
             ),
           ),

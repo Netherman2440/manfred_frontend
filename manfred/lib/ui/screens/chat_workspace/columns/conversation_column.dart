@@ -14,6 +14,8 @@ class ConversationColumn extends StatelessWidget {
     required this.isLoading,
     required this.errorMessage,
     required this.onRetry,
+    this.selectedThreadId,
+    this.onSelectThread,
   });
 
   final SessionViewMock sessionView;
@@ -21,6 +23,8 @@ class ConversationColumn extends StatelessWidget {
   final bool isLoading;
   final String? errorMessage;
   final VoidCallback onRetry;
+  final String? selectedThreadId;
+  final ValueChanged<String>? onSelectThread;
 
   @override
   Widget build(BuildContext context) {
@@ -55,10 +59,18 @@ class ConversationColumn extends StatelessWidget {
             (_, _, true) => const _ConversationMessage(
               message: 'Nowa sesja jest pusta. Wyślij pierwszą wiadomość.',
             ),
-            _ => ConversationList(entries: sessionView.entries),
+            _ => ConversationList(
+              entries: sessionView.entries,
+              selectedThreadId: selectedThreadId,
+              onSelectThread: onSelectThread,
+            ),
           },
         ),
-        ComposerMock(showCompactLayout: showCompactHeader),
+        ComposerMock(
+          showCompactLayout: showCompactHeader,
+          replyTarget: sessionView.replyTarget,
+          rootAgentName: sessionView.rootAgent,
+        ),
       ],
     );
   }
