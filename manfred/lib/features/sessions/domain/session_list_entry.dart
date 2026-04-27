@@ -1,3 +1,5 @@
+import 'session_title_formatter.dart';
+
 class SessionListEntry {
   const SessionListEntry({
     required this.id,
@@ -31,6 +33,38 @@ class SessionListEntry {
       return trimmed;
     }
 
-    return 'Untitled session';
+    return formatSessionTitleFallback(createdAt);
+  }
+
+  SessionListEntry copyWith({
+    String? id,
+    String? userId,
+    String? title,
+    bool clearTitle = false,
+    String? status,
+    String? rootAgentId,
+    String? rootAgentName,
+    String? rootAgentStatus,
+    int? waitingForCount,
+    String? lastMessagePreview,
+    bool clearLastMessagePreview = false,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return SessionListEntry(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: clearTitle ? null : title ?? this.title,
+      status: status ?? this.status,
+      rootAgentId: rootAgentId ?? this.rootAgentId,
+      rootAgentName: rootAgentName ?? this.rootAgentName,
+      rootAgentStatus: rootAgentStatus ?? this.rootAgentStatus,
+      waitingForCount: waitingForCount ?? this.waitingForCount,
+      lastMessagePreview: clearLastMessagePreview
+          ? null
+          : lastMessagePreview ?? this.lastMessagePreview,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
 }

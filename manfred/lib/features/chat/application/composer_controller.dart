@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_error.dart';
 import '../../sessions/application/session_details_provider.dart';
+import '../../sessions/application/session_overlay_providers.dart';
 import '../../sessions/application/sessions_list_provider.dart';
 import '../../sessions/application/selected_session_provider.dart';
 import '../../sessions/data/sessions_repository.dart';
@@ -81,6 +82,8 @@ class ComposerController extends Notifier<ComposerState> {
       );
 
       ref.read(selectedSessionProvider.notifier).select(result.sessionId);
+      ref.read(sessionsListOverlayProvider.notifier).remove(result.sessionId);
+      ref.read(sessionDetailsOverlayProvider.notifier).remove(result.sessionId);
       ref.invalidate(sessionsListProvider);
       ref.invalidate(sessionDetailsProvider);
       debugPrint(
@@ -160,6 +163,43 @@ class ComposerController extends Notifier<ComposerState> {
 
     String? resolvedSessionId = sessionId;
     String? streamError;
+    if (sessionId != null && sessionId.isNotEmpty) {
+      final selectedDetails = ref
+          .read(activeSessionDetailsViewProvider)
+          .valueOrNull;
+      final selectedSession = _findSessionListEntry(sessionId);
+      final resolvedAgentId =
+          selectedDetails?.rootAgent.id ?? selectedSession?.rootAgentId;
+      final resolvedAgentName =
+          rootAgentName ??
+          selectedDetails?.rootAgent.name ??
+          selectedSession?.rootAgentName ??
+          'Manfred';
+      if (resolvedAgentId != null && resolvedAgentId.isNotEmpty) {
+        final now = DateTime.now();
+        final userContext = ref.read(userContextProvider);
+        ref
+            .read(sessionsListOverlayProvider.notifier)
+            .syncStreamStart(
+              sessionId: sessionId,
+              userId: userContext.userId,
+              message: message,
+              rootAgentId: resolvedAgentId,
+              rootAgentName: resolvedAgentName,
+              startedAt: now,
+            );
+        ref
+            .read(sessionDetailsOverlayProvider.notifier)
+            .syncStreamStart(
+              sessionId: sessionId,
+              userId: userContext.userId,
+              message: message,
+              rootAgentId: resolvedAgentId,
+              rootAgentName: resolvedAgentName,
+              startedAt: now,
+            );
+      }
+    }
     try {
       await for (final event in repository.sendMessageStream(
         message: message,
@@ -167,10 +207,36 @@ class ComposerController extends Notifier<ComposerState> {
       )) {
         switch (event) {
           case ChatSessionStartedStreamEvent(:final sessionId, :final agentId):
+            final shouldCreateLocalStreamState =
+                state.activeSessionId != sessionId;
             resolvedSessionId = sessionId;
+            if (shouldCreateLocalStreamState) {
+              final now = DateTime.now();
+              final userContext = ref.read(userContextProvider);
+              final agentName =
+                  state.activeAgentName ?? rootAgentName ?? 'Manfred';
+              ref
+                  .read(sessionsListOverlayProvider.notifier)
+                  .syncStreamStart(
+                    sessionId: sessionId,
+                    userId: userContext.userId,
+                    message: message,
+                    rootAgentId: agentId,
+                    rootAgentName: agentName,
+                    startedAt: now,
+                  );
+              ref
+                  .read(sessionDetailsOverlayProvider.notifier)
+                  .syncStreamStart(
+                    sessionId: sessionId,
+                    userId: userContext.userId,
+                    message: message,
+                    rootAgentId: agentId,
+                    rootAgentName: agentName,
+                    startedAt: now,
+                  );
+            }
             ref.read(selectedSessionProvider.notifier).select(sessionId);
-            ref.invalidate(sessionsListProvider);
-            ref.invalidate(sessionDetailsProvider);
             state = state.copyWith(
               activeSessionId: sessionId,
               activeAgentId: agentId,
@@ -179,6 +245,44 @@ class ComposerController extends Notifier<ComposerState> {
             state = state.copyWith(
               streamingText: '${state.streamingText}$delta',
             );
+            if (resolvedSessionId != null && resolvedSessionId.isNotEmpty) {
+              ref
+                  .read(sessionDetailsOverlayProvider.notifier)
+                  .appendStreamingText(
+                    sessionId: resolvedSessionId,
+                    delta: delta,
+                    updatedAt: DateTime.now(),
+                  );
+            }
+          case ChatTextDoneStreamEvent(:final text):
+            state = state.copyWith(streamingText: text);
+            if (resolvedSessionId != null && resolvedSessionId.isNotEmpty) {
+              ref
+                  .read(sessionDetailsOverlayProvider.notifier)
+                  .setStreamingText(
+                    sessionId: resolvedSessionId,
+                    text: text,
+                    updatedAt: DateTime.now(),
+                  );
+            }
+          case ChatFunctionCallDeltaStreamEvent():
+            break;
+          case ChatFunctionCallDoneStreamEvent(
+            :final callId,
+            :final name,
+            :final arguments,
+          ):
+            if (resolvedSessionId != null && resolvedSessionId.isNotEmpty) {
+              ref
+                  .read(sessionDetailsOverlayProvider.notifier)
+                  .upsertToolCall(
+                    sessionId: resolvedSessionId,
+                    callId: callId,
+                    name: name,
+                    arguments: arguments,
+                    updatedAt: DateTime.now(),
+                  );
+            }
           case ChatErrorStreamEvent(:final error):
             if (!state.isStopping) {
               streamError = error;
@@ -203,7 +307,28 @@ class ComposerController extends Notifier<ComposerState> {
       }
     }
 
-    await _reconcileAfterStream(sessionId: resolvedSessionId);
+    if (resolvedSessionId != null && resolvedSessionId.isNotEmpty) {
+      final finishedAt = DateTime.now();
+      ref
+          .read(sessionDetailsOverlayProvider.notifier)
+          .syncStreamDone(sessionId: resolvedSessionId, finishedAt: finishedAt);
+      ref
+          .read(sessionsListOverlayProvider.notifier)
+          .syncStreamDone(
+            sessionId: resolvedSessionId,
+            finishedAt: finishedAt,
+            finalPreview: state.streamingText.isNotEmpty
+                ? state.streamingText
+                : message,
+          );
+      await _syncCanonicalSessionState(sessionId: resolvedSessionId);
+    }
+
+    final requiresSyncFallback = state.isStopping || streamError != null;
+    await _reconcileAfterStream(
+      sessionId: resolvedSessionId,
+      requiresSyncFallback: requiresSyncFallback,
+    );
     final finalErrorMessage = streamError ?? state.errorMessage;
     state = const ComposerState.initial().copyWith(
       errorMessage: finalErrorMessage,
@@ -211,54 +336,94 @@ class ComposerController extends Notifier<ComposerState> {
     );
   }
 
-  Future<void> _reconcileAfterStream({required String? sessionId}) async {
+  Future<void> _reconcileAfterStream({
+    required String? sessionId,
+    required bool requiresSyncFallback,
+  }) async {
     if (sessionId == null || sessionId.isEmpty) {
-      ref.invalidate(sessionsListProvider);
-      ref.invalidate(sessionDetailsProvider);
+      if (requiresSyncFallback) {
+        ref.invalidate(sessionsListProvider);
+        ref.invalidate(sessionDetailsProvider);
+      }
       return;
     }
 
-    final selectionController = ref.read(selectedSessionProvider.notifier);
-    selectionController.select(sessionId);
-
-    try {
-      final userContext = ref.read(userContextProvider);
-      final sessionsRepository = ref.read(sessionsRepositoryProvider);
-      final sessions = await sessionsRepository.fetchSessions(
-        userContext.userId,
-      );
-      final resolvedSessionId = _resolveSessionSelection(
-        requestedSessionId: sessionId,
-        sessions: sessions,
-      );
-      if (resolvedSessionId != null) {
-        selectionController.select(resolvedSessionId);
-      }
-    } catch (_) {
-      debugPrint(
-        '[composer.stream.reconcile.error] message=Nie udało się odświeżyć listy sesji po streamie.',
-      );
+    if (!requiresSyncFallback) {
+      return;
     }
 
+    ref.read(selectedSessionProvider.notifier).select(sessionId);
+    ref.read(sessionDetailsOverlayProvider.notifier).remove(sessionId);
+    ref.read(sessionsListOverlayProvider.notifier).remove(sessionId);
     ref.invalidate(sessionsListProvider);
     ref.invalidate(sessionDetailsProvider);
   }
 
-  String? _resolveSessionSelection({
-    required String requestedSessionId,
-    required List<SessionListEntry> sessions,
-  }) {
-    for (final session in sessions) {
-      if (session.id == requestedSessionId) {
-        return requestedSessionId;
-      }
-    }
-
-    if (sessions.isEmpty) {
+  SessionListEntry? _findSessionListEntry(String sessionId) {
+    final sessions = ref.read(sessionsListViewProvider).valueOrNull;
+    if (sessions == null) {
       return null;
     }
 
-    return sessions.first.id;
+    for (final session in sessions) {
+      if (session.id == sessionId) {
+        return session;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _syncCanonicalSessionState({required String sessionId}) async {
+    try {
+      final userContext = ref.read(userContextProvider);
+      final repository = ref.read(sessionsRepositoryProvider);
+      final details = await repository.fetchSessionDetails(
+        userContext.userId,
+        sessionId,
+      );
+      ref.read(sessionDetailsOverlayProvider.notifier).replace(details);
+
+      final sessions = await repository.fetchSessions(userContext.userId);
+      final sessionEntry = _findSessionInList(sessions, sessionId);
+      if (sessionEntry != null) {
+        ref.read(sessionsListOverlayProvider.notifier).upsert(sessionEntry);
+        ref
+            .read(sessionDetailsOverlayProvider.notifier)
+            .replace(
+              details.copyWith(
+                session: details.session.copyWith(
+                  title: sessionEntry.title,
+                  status: sessionEntry.status,
+                  createdAt: sessionEntry.createdAt,
+                  updatedAt: sessionEntry.updatedAt,
+                ),
+                rootAgent: details.rootAgent.copyWith(
+                  id: sessionEntry.rootAgentId,
+                  name: sessionEntry.rootAgentName,
+                  status: sessionEntry.rootAgentStatus,
+                ),
+              ),
+            );
+      }
+    } catch (_) {
+      debugPrint(
+        '[composer.stream.sync.error] message=Nie udało się zsynchronizować danych sesji po streamie.',
+      );
+    }
+  }
+
+  SessionListEntry? _findSessionInList(
+    List<SessionListEntry> sessions,
+    String sessionId,
+  ) {
+    for (final session in sessions) {
+      if (session.id == sessionId) {
+        return session;
+      }
+    }
+
+    return null;
   }
 }
 

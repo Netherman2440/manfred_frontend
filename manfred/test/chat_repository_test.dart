@@ -122,6 +122,54 @@ void main() {
   );
 
   test(
+    'sendMessageStream parses function call and text completion events',
+    () async {
+      final client = _StreamingClient((incoming) async {
+        return http.StreamedResponse(
+          Stream<List<int>>.fromIterable(<List<int>>[
+            utf8.encode('event: function_call_delta\n'),
+            utf8.encode(
+              'data: {"call_id":"call-1","name":"calculator","arguments_delta":"{\\"a\\":"}\n\n',
+            ),
+            utf8.encode('event: function_call_done\n'),
+            utf8.encode(
+              'data: {"call_id":"call-1","name":"calculator","arguments":{"a":123}}\n\n',
+            ),
+            utf8.encode('event: text_done\n'),
+            utf8.encode('data: {"text":"123 * 456 = 56088."}\n\n'),
+          ]),
+          200,
+          headers: const <String, String>{'content-type': 'text/event-stream'},
+        );
+      });
+
+      final repository = HttpChatRepository(
+        apiClient: ManfredApiClient(
+          client: client,
+          baseUrl: 'http://127.0.0.1:3000/api/v1',
+        ),
+      );
+
+      final events = await repository
+          .sendMessageStream(message: 'hello')
+          .toList();
+
+      expect(events[0], isA<ChatFunctionCallDeltaStreamEvent>());
+      expect(
+        (events[0] as ChatFunctionCallDeltaStreamEvent).argumentsDelta,
+        '{"a":',
+      );
+      expect(events[1], isA<ChatFunctionCallDoneStreamEvent>());
+      expect(
+        (events[1] as ChatFunctionCallDoneStreamEvent).arguments,
+        <String, Object?>{'a': 123},
+      );
+      expect(events[2], isA<ChatTextDoneStreamEvent>());
+      expect((events[2] as ChatTextDoneStreamEvent).text, '123 * 456 = 56088.');
+    },
+  );
+
+  test(
     'sendMessageStream without session yields session bootstrap event',
     () async {
       late http.BaseRequest request;

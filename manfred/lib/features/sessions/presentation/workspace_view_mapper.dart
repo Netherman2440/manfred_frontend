@@ -114,6 +114,7 @@ SessionViewMock buildSessionViewMock(
     rootAgent: details.rootAgent.name,
     rootAgentId: details.rootAgent.id,
     entries: timeline.map((item) => item.entry).toList(growable: false),
+    isAgentTyping: details.isWaitingForTextResponse,
     threads: threads
         .map((thread) => thread.toThreadView())
         .toList(growable: false),
@@ -220,8 +221,9 @@ ConversationEntryMock? _mapRootToolCall({
 }) {
   final dateLabel = _formatDate(item.createdAt);
   final timeLabel = _formatTime(item.createdAt);
+  final hasStructuredArguments = _asObjectMap(item.arguments) != null;
 
-  if (item.name == 'delegate') {
+  if (item.name == 'delegate' && hasStructuredArguments) {
     final delegateCall = _parseDelegateCall(item.arguments);
     pendingDelegates.add(
       _PendingDelegateCall(
@@ -239,7 +241,7 @@ ConversationEntryMock? _mapRootToolCall({
     );
   }
 
-  if (item.name == 'ask_user') {
+  if (item.name == 'ask_user' && hasStructuredArguments) {
     return UserPingConversationEntryMock(
       author: rootAgentName,
       dateLabel: dateLabel,
@@ -354,8 +356,9 @@ ConversationEntryMock? _mapThreadToolCall({
 }) {
   final dateLabel = _formatDate(item.createdAt);
   final timeLabel = _formatTime(item.createdAt);
+  final hasStructuredArguments = _asObjectMap(item.arguments) != null;
 
-  if (item.name == 'delegate') {
+  if (item.name == 'delegate' && hasStructuredArguments) {
     final delegateCall = _parseDelegateCall(item.arguments);
     return AgentPingConversationEntryMock(
       author: thread.agentName,
@@ -366,7 +369,7 @@ ConversationEntryMock? _mapThreadToolCall({
     );
   }
 
-  if (item.name == 'ask_user') {
+  if (item.name == 'ask_user' && hasStructuredArguments) {
     final prompt = _extractAskUserPrompt(item.arguments);
     final hasUserReply = linkedResult != null;
     if (!hasUserReply) {

@@ -184,8 +184,8 @@ void main() {
             rootAgentStatus: 'completed',
             waitingForCount: 0,
             lastMessagePreview: message,
-            createdAt: DateTime.parse('2026-04-17T11:00:00Z'),
-            updatedAt: DateTime.parse('2026-04-17T11:00:01Z'),
+            createdAt: DateTime(2026, 4, 17, 11),
+            updatedAt: DateTime(2026, 4, 17, 11, 0, 1),
           ),
         );
         sessionsRepository.setDetails(
@@ -196,8 +196,8 @@ void main() {
               userId: 'default-user',
               title: 'created-session',
               status: 'active',
-              createdAt: DateTime.parse('2026-04-17T11:00:00Z'),
-              updatedAt: DateTime.parse('2026-04-17T11:00:01Z'),
+              createdAt: DateTime(2026, 4, 17, 11),
+              updatedAt: DateTime(2026, 4, 17, 11, 0, 1),
             ),
             rootAgent: const RootAgentSummary(
               id: 'agent-created',
@@ -231,6 +231,9 @@ void main() {
           sessionId: 'session-created',
           agentId: 'agent-created',
         );
+        yield const ChatTextDeltaStreamEvent(
+          delta: 'Nowa sesja została utworzona.',
+        );
         yield const ChatDoneStreamEvent();
       },
       onDeliver: ({required agentId, required callId, required message}) async {
@@ -261,9 +264,11 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('created-session'), findsWidgets);
     expect(find.text('Pierwsza wiadomość'), findsOneWidget);
     expect(find.text('Nowa sesja została utworzona.'), findsOneWidget);
+    expect(sessionsRepository.fetchSessionsCalls, 2);
+    expect(sessionsRepository.fetchSessionDetailsCalls['session-existing'], 1);
+    expect(sessionsRepository.fetchSessionDetailsCalls['session-created'], 1);
   });
   testWidgets('waiting reply shows banner and routes send through deliver', (
     WidgetTester tester,
@@ -564,7 +569,10 @@ void main() {
 
     expect(find.byTooltip('Stop'), findsOneWidget);
     expect(find.text('Pokaż stream.'), findsOneWidget);
-    expect(find.text('Generowanie odpowiedzi...'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('agent-typing-indicator')),
+      findsOneWidget,
+    );
 
     streamController.add(const ChatTextDeltaStreamEvent(delta: 'To jest '));
     await tester.pump();
@@ -572,6 +580,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('To jest odpowiedź.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('agent-typing-indicator')), findsNothing);
 
     await tester.tap(find.byTooltip('Stop'));
     await tester.pump();
@@ -584,6 +593,308 @@ void main() {
     expect(find.byTooltip('Stop'), findsNothing);
     expect(find.text('Run cancelled.'), findsOneWidget);
   });
+
+  testWidgets('streaming tool call appears before final session sync', (
+    WidgetTester tester,
+  ) async {
+    final sessionsRepository = FakeSessionsRepository(
+      sessions: <SessionListEntry>[
+        SessionListEntry(
+          id: 'session-1',
+          userId: 'default-user',
+          title: 'streaming',
+          status: 'active',
+          rootAgentId: 'agent-root',
+          rootAgentName: 'Manfred',
+          rootAgentStatus: 'running',
+          waitingForCount: 0,
+          lastMessagePreview: 'Previous answer',
+          createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+          updatedAt: DateTime.parse('2026-04-22T09:02:00Z'),
+        ),
+      ],
+      details: <String, SessionDetails>{
+        'session-1': SessionDetails(
+          session: SessionSummary(
+            id: 'session-1',
+            userId: 'default-user',
+            title: 'streaming',
+            status: 'active',
+            createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+            updatedAt: DateTime.parse('2026-04-22T09:02:00Z'),
+          ),
+          rootAgent: const RootAgentSummary(
+            id: 'agent-root',
+            name: 'Manfred',
+            status: 'running',
+            model: 'openrouter:test-model',
+            waitingFor: <Map<String, Object?>>[],
+          ),
+          items: <SessionItem>[
+            SessionMessageItem(
+              id: 'item-1',
+              agentId: 'agent-root',
+              sequence: 1,
+              createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+              role: 'assistant',
+              content: 'Previous answer',
+            ),
+          ],
+        ),
+      },
+    );
+
+    final streamController = StreamController<ChatStreamEvent>();
+    addTearDown(() async {
+      if (!streamController.isClosed) {
+        await streamController.close();
+      }
+    });
+
+    final chatRepository = FakeChatRepository(
+      onSendStream: ({required message, String? sessionId}) {
+        expect(message, 'Pokaż tool.');
+        expect(sessionId, 'session-1');
+        return streamController.stream;
+      },
+      onDeliver: ({required agentId, required callId, required message}) async {
+        throw UnimplementedError('deliver should not be used in this test');
+      },
+    );
+
+    await _pumpWorkspace(
+      tester,
+      sessionsRepository: sessionsRepository,
+      chatRepository: chatRepository,
+    );
+
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Pokaż tool.');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pump();
+
+    streamController.add(
+      const ChatSessionStartedStreamEvent(
+        sessionId: 'session-1',
+        agentId: 'agent-root',
+      ),
+    );
+    await tester.pump();
+    streamController.add(
+      const ChatFunctionCallDoneStreamEvent(
+        callId: 'call-1',
+        name: 'search_docs',
+        arguments: <String, Object?>{'query': 'stream output'},
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('search_docs'), findsOneWidget);
+    final typingIndicator = find.byKey(
+      const ValueKey('agent-typing-indicator'),
+    );
+    expect(typingIndicator, findsOneWidget);
+    expect(
+      tester.getTopLeft(typingIndicator).dy,
+      greaterThan(tester.getTopLeft(find.text('search_docs')).dy),
+    );
+  });
+
+  testWidgets(
+    'completed stream syncs canonical details with tool calls without reload state',
+    (WidgetTester tester) async {
+      final sessionsRepository = FakeSessionsRepository(
+        sessions: <SessionListEntry>[
+          SessionListEntry(
+            id: 'session-1',
+            userId: 'default-user',
+            title: 'streaming',
+            status: 'active',
+            rootAgentId: 'agent-root',
+            rootAgentName: 'Manfred',
+            rootAgentStatus: 'running',
+            waitingForCount: 0,
+            lastMessagePreview: 'Previous answer',
+            createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+            updatedAt: DateTime.parse('2026-04-22T09:02:00Z'),
+          ),
+        ],
+        details: <String, SessionDetails>{
+          'session-1': SessionDetails(
+            session: SessionSummary(
+              id: 'session-1',
+              userId: 'default-user',
+              title: 'streaming',
+              status: 'active',
+              createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+              updatedAt: DateTime.parse('2026-04-22T09:02:00Z'),
+            ),
+            rootAgent: const RootAgentSummary(
+              id: 'agent-root',
+              name: 'Manfred',
+              status: 'running',
+              model: 'openrouter:test-model',
+              waitingFor: <Map<String, Object?>>[],
+            ),
+            items: <SessionItem>[
+              SessionMessageItem(
+                id: 'item-1',
+                agentId: 'agent-root',
+                sequence: 1,
+                createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+                role: 'assistant',
+                content: 'Previous answer',
+              ),
+            ],
+          ),
+        },
+      );
+
+      final streamController = StreamController<ChatStreamEvent>();
+      addTearDown(() async {
+        if (!streamController.isClosed) {
+          await streamController.close();
+        }
+      });
+
+      final chatRepository = FakeChatRepository(
+        onSendStream: ({required message, String? sessionId}) {
+          expect(message, 'Pokaż stream.');
+          expect(sessionId, 'session-1');
+          return streamController.stream;
+        },
+        onDeliver:
+            ({required agentId, required callId, required message}) async {
+              throw UnimplementedError(
+                'deliver should not be used in this test',
+              );
+            },
+      );
+
+      await _pumpWorkspace(
+        tester,
+        sessionsRepository: sessionsRepository,
+        chatRepository: chatRepository,
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(sessionsRepository.fetchSessionsCalls, 1);
+      expect(sessionsRepository.fetchSessionDetailsCalls['session-1'], 1);
+
+      await tester.enterText(find.byType(TextField), 'Pokaż stream.');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pump();
+
+      streamController.add(
+        const ChatSessionStartedStreamEvent(
+          sessionId: 'session-1',
+          agentId: 'agent-root',
+        ),
+      );
+      await tester.pump();
+      streamController.add(const ChatTextDeltaStreamEvent(delta: 'To jest '));
+      await tester.pump();
+      streamController.add(const ChatTextDeltaStreamEvent(delta: 'odpowiedź.'));
+      await tester.pump();
+      sessionsRepository.upsertSession(
+        SessionListEntry(
+          id: 'session-1',
+          userId: 'default-user',
+          title: 'streaming',
+          status: 'active',
+          rootAgentId: 'agent-root',
+          rootAgentName: 'Manfred',
+          rootAgentStatus: 'completed',
+          waitingForCount: 0,
+          lastMessagePreview: 'To jest odpowiedź.',
+          createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+          updatedAt: DateTime.parse('2026-04-22T09:03:00Z'),
+        ),
+      );
+      sessionsRepository.setDetails(
+        'session-1',
+        SessionDetails(
+          session: SessionSummary(
+            id: 'session-1',
+            userId: 'default-user',
+            title: 'streaming',
+            status: 'active',
+            createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+            updatedAt: DateTime.parse('2026-04-22T09:03:00Z'),
+          ),
+          rootAgent: const RootAgentSummary(
+            id: 'agent-root',
+            name: 'Manfred',
+            status: 'completed',
+            model: 'openrouter:test-model',
+            waitingFor: <Map<String, Object?>>[],
+          ),
+          items: <SessionItem>[
+            SessionMessageItem(
+              id: 'item-1',
+              agentId: 'agent-root',
+              sequence: 1,
+              createdAt: DateTime.parse('2026-04-22T09:00:00Z'),
+              role: 'assistant',
+              content: 'Previous answer',
+            ),
+            SessionMessageItem(
+              id: 'item-user',
+              agentId: 'agent-root',
+              sequence: 2,
+              createdAt: DateTime.parse('2026-04-22T09:02:30Z'),
+              role: 'user',
+              content: 'Pokaż stream.',
+            ),
+            SessionToolCallItem(
+              id: 'item-tool',
+              agentId: 'agent-root',
+              sequence: 3,
+              createdAt: DateTime.parse('2026-04-22T09:02:40Z'),
+              callId: 'call-1',
+              name: 'search_docs',
+              arguments: <String, Object?>{'query': 'stream output'},
+            ),
+            SessionToolResultItem(
+              id: 'item-tool-output',
+              agentId: 'agent-root',
+              sequence: 4,
+              createdAt: DateTime.parse('2026-04-22T09:02:41Z'),
+              callId: 'call-1',
+              name: 'search_docs',
+              toolResult: <String, Object?>{'hits': 1},
+              isError: false,
+            ),
+            SessionMessageItem(
+              id: 'item-2',
+              agentId: 'agent-root',
+              sequence: 5,
+              createdAt: DateTime.parse('2026-04-22T09:03:00Z'),
+              role: 'assistant',
+              content: 'To jest odpowiedź.',
+            ),
+          ],
+        ),
+      );
+      streamController.add(const ChatDoneStreamEvent());
+      await tester.pump();
+      await streamController.close();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pokaż stream.'), findsOneWidget);
+      expect(find.text('To jest odpowiedź.'), findsOneWidget);
+      expect(find.text('search_docs'), findsOneWidget);
+      expect(find.text('Ładowanie historii sesji...'), findsNothing);
+      expect(sessionsRepository.fetchSessionsCalls, 2);
+      expect(sessionsRepository.fetchSessionDetailsCalls['session-1'], 2);
+    },
+  );
 }
 
 Future<void> _pumpWorkspace(
@@ -620,12 +931,19 @@ class FakeSessionsRepository implements SessionsRepository {
 
   final List<SessionListEntry> _sessions;
   final Map<String, SessionDetails> _details;
+  int fetchSessionsCalls = 0;
+  final Map<String, int> fetchSessionDetailsCalls = <String, int>{};
 
   @override
   Future<SessionDetails> fetchSessionDetails(
     String userId,
     String sessionId,
   ) async {
+    fetchSessionDetailsCalls.update(
+      sessionId,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
     final details = _details[sessionId];
     if (details == null) {
       throw StateError('Missing details for $sessionId');
@@ -636,6 +954,7 @@ class FakeSessionsRepository implements SessionsRepository {
 
   @override
   Future<List<SessionListEntry>> fetchSessions(String userId) async {
+    fetchSessionsCalls += 1;
     return List<SessionListEntry>.from(_sessions);
   }
 
