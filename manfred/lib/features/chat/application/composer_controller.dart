@@ -7,6 +7,7 @@ import '../../sessions/application/session_overlay_providers.dart';
 import '../../sessions/application/sessions_list_provider.dart';
 import '../../sessions/application/selected_session_provider.dart';
 import '../../sessions/data/sessions_repository.dart';
+import '../../sessions/domain/session_details.dart';
 import '../../sessions/domain/session_list_entry.dart';
 import '../../user/application/user_context_provider.dart';
 import '../data/chat_repository.dart';
@@ -125,6 +126,7 @@ class ComposerController extends Notifier<ComposerState> {
     String? deliveryAgentId,
     String? deliveryCallId,
   }) async {
+    final startedAt = DateTime.now();
     state = state
         .copyWith(clearActiveRun: true)
         .copyWith(
@@ -136,6 +138,7 @@ class ComposerController extends Notifier<ComposerState> {
           streamingText: '',
           activeSessionId: sessionId,
           activeAgentName: rootAgentName,
+          streamingStartedAt: startedAt,
           clearErrorMessage: true,
         );
 
@@ -154,7 +157,6 @@ class ComposerController extends Notifier<ComposerState> {
           selectedSession?.rootAgentName ??
           'Manfred';
       if (resolvedAgentId != null && resolvedAgentId.isNotEmpty) {
-        final now = DateTime.now();
         final userContext = ref.read(userContextProvider);
         ref
             .read(sessionsListOverlayProvider.notifier)
@@ -164,7 +166,7 @@ class ComposerController extends Notifier<ComposerState> {
               message: message,
               rootAgentId: resolvedAgentId,
               rootAgentName: resolvedAgentName,
-              startedAt: now,
+              startedAt: startedAt,
             );
         ref
             .read(sessionDetailsOverlayProvider.notifier)
@@ -174,7 +176,7 @@ class ComposerController extends Notifier<ComposerState> {
               message: message,
               rootAgentId: resolvedAgentId,
               rootAgentName: resolvedAgentName,
-              startedAt: now,
+              startedAt: startedAt,
             );
       }
     }
@@ -200,7 +202,6 @@ class ComposerController extends Notifier<ComposerState> {
                 state.activeSessionId != sessionId;
             resolvedSessionId = sessionId;
             if (shouldCreateLocalStreamState) {
-              final now = DateTime.now();
               final userContext = ref.read(userContextProvider);
               final agentName =
                   state.activeAgentName ?? rootAgentName ?? 'Manfred';
@@ -212,7 +213,7 @@ class ComposerController extends Notifier<ComposerState> {
                     message: message,
                     rootAgentId: agentId,
                     rootAgentName: agentName,
-                    startedAt: now,
+                    startedAt: startedAt,
                   );
               ref
                   .read(sessionDetailsOverlayProvider.notifier)
@@ -222,7 +223,7 @@ class ComposerController extends Notifier<ComposerState> {
                     message: message,
                     rootAgentId: agentId,
                     rootAgentName: agentName,
-                    startedAt: now,
+                    startedAt: startedAt,
                   );
             }
             ref.read(selectedSessionProvider.notifier).select(sessionId);
@@ -296,24 +297,36 @@ class ComposerController extends Notifier<ComposerState> {
       }
     }
 
+    final requiresSyncFallback = state.isStopping || streamError != null;
     if (resolvedSessionId != null && resolvedSessionId.isNotEmpty) {
       final finishedAt = DateTime.now();
+      final finalRootAgentStatus = switch ((state.isStopping, streamError)) {
+        (true, _) => 'cancelled',
+        (false, String _) => 'failed',
+        _ => 'completed',
+      };
       ref
           .read(sessionDetailsOverlayProvider.notifier)
-          .syncStreamDone(sessionId: resolvedSessionId, finishedAt: finishedAt);
+          .syncStreamDone(
+            sessionId: resolvedSessionId,
+            finishedAt: finishedAt,
+            rootAgentStatus: finalRootAgentStatus,
+          );
       ref
           .read(sessionsListOverlayProvider.notifier)
           .syncStreamDone(
             sessionId: resolvedSessionId,
             finishedAt: finishedAt,
+            rootAgentStatus: finalRootAgentStatus,
             finalPreview: state.streamingText.isNotEmpty
                 ? state.streamingText
                 : message,
           );
-      await _syncCanonicalSessionState(sessionId: resolvedSessionId);
+      if (!requiresSyncFallback) {
+        await _syncCanonicalSessionState(sessionId: resolvedSessionId);
+      }
     }
 
-    final requiresSyncFallback = state.isStopping || streamError != null;
     await _reconcileAfterStream(
       sessionId: resolvedSessionId,
       requiresSyncFallback: requiresSyncFallback,
@@ -367,33 +380,32 @@ class ComposerController extends Notifier<ComposerState> {
     try {
       final userContext = ref.read(userContextProvider);
       final repository = ref.read(sessionsRepositoryProvider);
-      final details = await repository.fetchSessionDetails(
-        userContext.userId,
-        sessionId,
-      );
-      ref.read(sessionDetailsOverlayProvider.notifier).replace(details);
-
-      final sessions = await repository.fetchSessions(userContext.userId);
+      final results = await Future.wait<Object?>(<Future<Object?>>[
+        repository.fetchSessionDetails(userContext.userId, sessionId),
+        repository.fetchSessions(userContext.userId),
+      ]);
+      final details = results[0] as SessionDetails;
+      final sessions = results[1] as List<SessionListEntry>;
       final sessionEntry = _findSessionInList(sessions, sessionId);
-      if (sessionEntry != null) {
-        ref.read(sessionsListOverlayProvider.notifier).upsert(sessionEntry);
-        ref
-            .read(sessionDetailsOverlayProvider.notifier)
-            .replace(
-              details.copyWith(
-                session: details.session.copyWith(
-                  title: sessionEntry.title,
-                  status: sessionEntry.status,
-                  createdAt: sessionEntry.createdAt,
-                  updatedAt: sessionEntry.updatedAt,
-                ),
-                rootAgent: details.rootAgent.copyWith(
-                  id: sessionEntry.rootAgentId,
-                  name: sessionEntry.rootAgentName,
-                  status: sessionEntry.rootAgentStatus,
-                ),
+      final mergedDetails = sessionEntry == null
+          ? details
+          : details.copyWith(
+              session: details.session.copyWith(
+                title: sessionEntry.title,
+                status: sessionEntry.status,
+                createdAt: sessionEntry.createdAt,
+                updatedAt: sessionEntry.updatedAt,
+              ),
+              rootAgent: details.rootAgent.copyWith(
+                id: sessionEntry.rootAgentId,
+                name: sessionEntry.rootAgentName,
+                status: sessionEntry.rootAgentStatus,
               ),
             );
+
+      ref.read(sessionDetailsOverlayProvider.notifier).replace(mergedDetails);
+      if (sessionEntry != null) {
+        ref.read(sessionsListOverlayProvider.notifier).upsert(sessionEntry);
       }
     } catch (_) {
       debugPrint(

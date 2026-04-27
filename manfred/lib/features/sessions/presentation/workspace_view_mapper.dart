@@ -586,9 +586,9 @@ ComposerReplyTargetMock? _buildReplyTarget({
         rootAgentName,
       _ => thread?.agentName ?? _fallbackAgentName(waitingAgentId),
     };
-    final resolvedDescription =
-        thread?.latestPendingAskUserPrompt?.trim().isNotEmpty == true
-        ? thread!.latestPendingAskUserPrompt!
+    final pendingPrompt = thread?.latestPendingAskUserPrompt?.trim() ?? '';
+    final resolvedDescription = pendingPrompt.isNotEmpty
+        ? pendingPrompt
         : description;
 
     return ComposerReplyTargetMock(

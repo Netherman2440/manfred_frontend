@@ -51,6 +51,14 @@ class SessionListEntry {
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
+    assert(
+      !(clearTitle && title != null),
+      'Cannot pass title and clearTitle together.',
+    );
+    assert(
+      !(clearLastMessagePreview && lastMessagePreview != null),
+      'Cannot pass lastMessagePreview and clearLastMessagePreview together.',
+    );
     return SessionListEntry(
       id: id ?? this.id,
       userId: userId ?? this.userId,

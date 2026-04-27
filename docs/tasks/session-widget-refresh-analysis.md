@@ -28,7 +28,7 @@ W `ChatSessionStartedStreamEvent`:
 - `invalidate(sessionDetailsProvider)`
 
 Aktualne miejsce:
-- `manfred/lib/features/chat/application/composer_controller.dart:169`
+- `ComposerController._sendStreamMessage()` przy obsłudze `ChatSessionStartedStreamEvent`
 
 ### 2. Po streamie jest drugi refresh tej samej sesji
 
@@ -40,7 +40,7 @@ W `_reconcileAfterStream(...)`:
   - `invalidate(sessionDetailsProvider)`
 
 Aktualne miejsce:
-- `manfred/lib/features/chat/application/composer_controller.dart:214`
+- `ComposerController._reconcileAfterStream(...)`
 
 ### 3. `select(sessionId)` przebudowuje nawet te sama sesje
 

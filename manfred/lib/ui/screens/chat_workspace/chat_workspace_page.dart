@@ -152,7 +152,7 @@ class ChatWorkspacePage extends ConsumerWidget {
     if (composerState.isStreaming &&
         composerState.activeSessionId == null &&
         selection.isDraft) {
-      final now = DateTime.now();
+      final startedAt = composerState.streamingStartedAt ?? DateTime.now();
       return SessionViewMock(
         title: 'New session',
         rootAgent: composerState.activeAgentName ?? rootAgentName,
@@ -161,9 +161,16 @@ class ChatWorkspacePage extends ConsumerWidget {
               composerState.pendingUserMessage!.isNotEmpty)
             UserConversationEntryMock(
               author: baseWorkspace.currentUser.name,
-              dateLabel: _formatStreamingDate(now),
-              timeLabel: _formatStreamingTime(now),
+              dateLabel: _formatStreamingDate(startedAt),
+              timeLabel: _formatStreamingTime(startedAt),
               body: composerState.pendingUserMessage!,
+            ),
+          if (composerState.streamingText.isNotEmpty)
+            AgentConversationEntryMock(
+              author: composerState.activeAgentName ?? rootAgentName,
+              dateLabel: _formatStreamingDate(startedAt),
+              timeLabel: _formatStreamingTime(startedAt),
+              body: composerState.streamingText,
             ),
         ],
         isAgentTyping: composerState.streamingText.isEmpty,

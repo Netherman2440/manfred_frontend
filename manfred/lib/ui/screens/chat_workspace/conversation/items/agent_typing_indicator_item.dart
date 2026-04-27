@@ -77,7 +77,7 @@ class _AgentTypingIndicatorItemState extends State<AgentTypingIndicatorItem>
     if (progress < 0.66) {
       return 0.86 - (progress - 0.33) * 0.6;
     }
-    return 0.5 - (progress - 0.66) * 0.6;
+    return 0.662 - (progress - 0.66) * 0.6;
   }
 
   String _avatarLabel(String author) {

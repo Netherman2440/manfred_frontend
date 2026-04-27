@@ -853,6 +853,69 @@ void main() {
     expect(find.text('Run cancelled.'), findsOneWidget);
   });
 
+  testWidgets(
+    'draft stream shows accumulated assistant text before session bootstrap',
+    (WidgetTester tester) async {
+      final sessionsRepository = FakeSessionsRepository(
+        sessions: const <SessionListEntry>[],
+        details: const <String, SessionDetails>{},
+      );
+
+      final streamController = StreamController<ChatStreamEvent>();
+      addTearDown(() async {
+        if (!streamController.isClosed) {
+          await streamController.close();
+        }
+      });
+
+      final chatRepository = FakeChatRepository(
+        onSendStream: ({required message, String? sessionId}) {
+          expect(message, 'Pokaż odpowiedź.');
+          expect(sessionId, isNull);
+          return streamController.stream;
+        },
+        onDeliver:
+            ({required agentId, required callId, required message}) async {
+              throw UnimplementedError(
+                'deliver should not be used in this test',
+              );
+            },
+      );
+
+      await _pumpWorkspace(
+        tester,
+        sessionsRepository: sessionsRepository,
+        chatRepository: chatRepository,
+      );
+
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('New session').first);
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'Pokaż odpowiedź.');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pump();
+
+      streamController.add(const ChatTextDeltaStreamEvent(delta: 'To jest '));
+      await tester.pump();
+      streamController.add(const ChatTextDeltaStreamEvent(delta: 'draft.'));
+      await tester.pump();
+
+      expect(find.text('Pokaż odpowiedź.'), findsOneWidget);
+      expect(find.text('To jest draft.'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('agent-typing-indicator')),
+        findsNothing,
+      );
+
+      streamController.add(const ChatDoneStreamEvent());
+      await streamController.close();
+      await tester.pumpAndSettle();
+    },
+  );
+
   testWidgets('streaming tool call appears before final session sync', (
     WidgetTester tester,
   ) async {
@@ -960,6 +1023,10 @@ void main() {
       tester.getTopLeft(typingIndicator).dy,
       greaterThan(tester.getTopLeft(find.text('search_docs')).dy),
     );
+
+    streamController.add(const ChatDoneStreamEvent());
+    await streamController.close();
+    await tester.pumpAndSettle();
   });
 
   testWidgets(

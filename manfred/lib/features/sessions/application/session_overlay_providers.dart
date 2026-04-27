@@ -73,6 +73,7 @@ class SessionsListOverlayController extends Notifier<List<SessionListEntry>> {
             rootAgentId: rootAgentId,
             rootAgentName: rootAgentName,
             rootAgentStatus: 'running',
+            waitingForCount: 0,
             lastMessagePreview: message,
             createdAt: existing?.createdAt ?? startedAt,
             updatedAt: startedAt,
@@ -84,6 +85,7 @@ class SessionsListOverlayController extends Notifier<List<SessionListEntry>> {
     required String sessionId,
     required DateTime finishedAt,
     required String? finalPreview,
+    String rootAgentStatus = 'completed',
   }) {
     final existing = _findSession(sessionId);
     if (existing == null) {
@@ -92,7 +94,7 @@ class SessionsListOverlayController extends Notifier<List<SessionListEntry>> {
 
     upsert(
       existing.copyWith(
-        rootAgentStatus: 'completed',
+        rootAgentStatus: rootAgentStatus,
         lastMessagePreview: finalPreview,
         updatedAt: finishedAt,
       ),
@@ -353,6 +355,7 @@ class SessionDetailsOverlayController
   void syncStreamDone({
     required String sessionId,
     required DateTime finishedAt,
+    String rootAgentStatus = 'completed',
   }) {
     final current = state[sessionId];
     if (current == null) {
@@ -362,7 +365,7 @@ class SessionDetailsOverlayController
     replace(
       current.copyWith(
         session: current.session.copyWith(updatedAt: finishedAt),
-        rootAgent: current.rootAgent.copyWith(status: 'completed'),
+        rootAgent: current.rootAgent.copyWith(status: rootAgentStatus),
         isWaitingForTextResponse: false,
         clearStreamingMessageItemId: true,
       ),

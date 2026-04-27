@@ -154,6 +154,7 @@ void main() {
           .sendMessageStream(message: 'hello')
           .toList();
 
+      expect(events.length, 3);
       expect(events[0], isA<ChatFunctionCallDeltaStreamEvent>());
       expect(
         (events[0] as ChatFunctionCallDeltaStreamEvent).argumentsDelta,
