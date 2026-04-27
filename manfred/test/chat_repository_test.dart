@@ -249,6 +249,59 @@ void main() {
     });
   });
 
+  test(
+    'deliverMessageStream posts stream=true and yields parsed text deltas',
+    () async {
+      late http.BaseRequest request;
+      final client = _StreamingClient((incoming) async {
+        request = incoming;
+        return http.StreamedResponse(
+          Stream<List<int>>.fromIterable(<List<int>>[
+            utf8.encode('event: text_delta\n'),
+            utf8.encode('data: {"delta":"Dzię"}\n\n'),
+            utf8.encode('event: text_done\n'),
+            utf8.encode('data: {"text":"Dzięki."}\n\n'),
+            utf8.encode('event: done\n'),
+            utf8.encode('data: {"type":"done"}\n\n'),
+          ]),
+          200,
+          headers: const <String, String>{'content-type': 'text/event-stream'},
+        );
+      });
+
+      final repository = HttpChatRepository(
+        apiClient: ManfredApiClient(
+          client: client,
+          baseUrl: 'http://127.0.0.1:3000/api/v1',
+        ),
+      );
+
+      final events = await repository
+          .deliverMessageStream(
+            agentId: 'agent-child',
+            callId: 'call-human',
+            message: 'Chodzi o Zamek Królewski na Wawelu.',
+          )
+          .toList();
+
+      expect(request.url.path, '/api/v1/chat/agents/agent-child/deliver');
+      expect(request.method, 'POST');
+      expect(
+        jsonDecode((request as http.Request).body) as Map<String, dynamic>,
+        <String, dynamic>{
+          'call_id': 'call-human',
+          'output': 'Chodzi o Zamek Królewski na Wawelu.',
+          'is_error': false,
+          'stream': true,
+        },
+      );
+      expect(events.length, 3);
+      expect((events[0] as ChatTextDeltaStreamEvent).delta, 'Dzię');
+      expect((events[1] as ChatTextDoneStreamEvent).text, 'Dzięki.');
+      expect(events[2], isA<ChatDoneStreamEvent>());
+    },
+  );
+
   test('cancelRun posts session cancel payload', () async {
     late Uri requestUri;
     late Map<String, dynamic> requestBody;

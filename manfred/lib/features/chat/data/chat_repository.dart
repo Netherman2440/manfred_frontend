@@ -20,6 +20,11 @@ abstract class ChatRepository {
     required String message,
     String? sessionId,
   });
+  Stream<ChatStreamEvent> deliverMessageStream({
+    required String agentId,
+    required String callId,
+    required String message,
+  });
   Future<ChatMutationResult> deliverMessage({
     required String agentId,
     required String callId,
@@ -76,10 +81,30 @@ class HttpChatRepository implements ChatRepository {
       body['session_id'] = sessionId;
     }
 
-    await for (final event in _apiClient.postSse(
-      '/chat/completions',
-      body: body,
-    )) {
+    yield* _streamRequest('/chat/completions', body: body);
+  }
+
+  @override
+  Stream<ChatStreamEvent> deliverMessageStream({
+    required String agentId,
+    required String callId,
+    required String message,
+  }) async* {
+    final body = <String, Object?>{
+      'call_id': callId,
+      'output': message,
+      'is_error': false,
+      'stream': true,
+    };
+
+    yield* _streamRequest('/chat/agents/$agentId/deliver', body: body);
+  }
+
+  Stream<ChatStreamEvent> _streamRequest(
+    String path, {
+    required Map<String, Object?> body,
+  }) async* {
+    await for (final event in _apiClient.postSse(path, body: body)) {
       final payload = _decodeEventPayload(event.data);
       _logIncomingSseEvent(event: event, payload: payload);
       switch (event.event) {

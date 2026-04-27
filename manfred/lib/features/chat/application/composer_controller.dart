@@ -58,38 +58,14 @@ class ComposerController extends Notifier<ComposerState> {
           '[composer.send] mode=chat session_id=${selection.sessionId ?? ''}',
         );
       }
-      if (!shouldDeliver) {
-        await _sendStreamMessage(
-          repository: repository,
-          message: trimmedDraft,
-          sessionId: selection.sessionId,
-          rootAgentName: rootAgentName,
-        );
-        return;
-      }
-      final result = await repository.deliverMessage(
-        agentId: deliveryAgentId,
-        callId: deliveryCallId,
+      await _sendStreamMessage(
+        repository: repository,
         message: trimmedDraft,
+        sessionId: selection.sessionId,
+        rootAgentName: rootAgentName,
+        deliveryAgentId: shouldDeliver ? deliveryAgentId : null,
+        deliveryCallId: shouldDeliver ? deliveryCallId : null,
       );
-
-      if (result.sessionId.isEmpty) {
-        throw StateError('Backend did not return session_id.');
-      }
-
-      debugPrint(
-        '[composer.send.result] mode=deliver session_id=${result.sessionId} agent_id=${result.agentId} status=${result.status} error=${result.error ?? ''}',
-      );
-
-      ref.read(selectedSessionProvider.notifier).select(result.sessionId);
-      ref.read(sessionsListOverlayProvider.notifier).remove(result.sessionId);
-      ref.read(sessionDetailsOverlayProvider.notifier).remove(result.sessionId);
-      ref.invalidate(sessionsListProvider);
-      ref.invalidate(sessionDetailsProvider);
-      debugPrint(
-        '[composer.send.invalidate] sessions_list=true session_details=true selected_session=${result.sessionId}',
-      );
-      state = const ComposerState.initial();
     } on ApiError catch (error) {
       debugPrint(
         '[composer.send.api_error] status_code=${error.statusCode ?? ''} message=${error.message}',
@@ -146,6 +122,8 @@ class ComposerController extends Notifier<ComposerState> {
     required String message,
     required String? sessionId,
     required String? rootAgentName,
+    String? deliveryAgentId,
+    String? deliveryCallId,
   }) async {
     state = state
         .copyWith(clearActiveRun: true)
@@ -201,10 +179,21 @@ class ComposerController extends Notifier<ComposerState> {
       }
     }
     try {
-      await for (final event in repository.sendMessageStream(
-        message: message,
-        sessionId: sessionId,
-      )) {
+      final stream =
+          deliveryAgentId != null &&
+              deliveryAgentId.isNotEmpty &&
+              deliveryCallId != null &&
+              deliveryCallId.isNotEmpty
+          ? repository.deliverMessageStream(
+              agentId: deliveryAgentId,
+              callId: deliveryCallId,
+              message: message,
+            )
+          : repository.sendMessageStream(
+              message: message,
+              sessionId: sessionId,
+            );
+      await for (final event in stream) {
         switch (event) {
           case ChatSessionStartedStreamEvent(:final sessionId, :final agentId):
             final shouldCreateLocalStreamState =
