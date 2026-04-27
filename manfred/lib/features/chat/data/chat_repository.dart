@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/manfred_api_client.dart';
+import '../../../core/api/sse_client.dart';
 import '../../user/application/user_context_provider.dart';
 import '../domain/chat_mutation_result.dart';
 import '../domain/chat_stream_event.dart';
@@ -18,6 +19,11 @@ abstract class ChatRepository {
   Stream<ChatStreamEvent> sendMessageStream({
     required String message,
     String? sessionId,
+  });
+  Stream<ChatStreamEvent> deliverMessageStream({
+    required String agentId,
+    required String callId,
+    required String message,
   });
   Future<ChatMutationResult> deliverMessage({
     required String agentId,
@@ -75,11 +81,32 @@ class HttpChatRepository implements ChatRepository {
       body['session_id'] = sessionId;
     }
 
-    await for (final event in _apiClient.postSse(
-      '/chat/completions',
-      body: body,
-    )) {
+    yield* _streamRequest('/chat/completions', body: body);
+  }
+
+  @override
+  Stream<ChatStreamEvent> deliverMessageStream({
+    required String agentId,
+    required String callId,
+    required String message,
+  }) async* {
+    final body = <String, Object?>{
+      'call_id': callId,
+      'output': message,
+      'is_error': false,
+      'stream': true,
+    };
+
+    yield* _streamRequest('/chat/agents/$agentId/deliver', body: body);
+  }
+
+  Stream<ChatStreamEvent> _streamRequest(
+    String path, {
+    required Map<String, Object?> body,
+  }) async* {
+    await for (final event in _apiClient.postSse(path, body: body)) {
       final payload = _decodeEventPayload(event.data);
+      _logIncomingSseEvent(event: event, payload: payload);
       switch (event.event) {
         case 'session':
           final resolvedSessionId = payload['session_id'];
@@ -88,23 +115,120 @@ class HttpChatRepository implements ChatRepository {
               resolvedSessionId.isNotEmpty &&
               resolvedAgentId is String &&
               resolvedAgentId.isNotEmpty) {
+            _logParsedChatStreamEvent(
+              eventName: event.event,
+              details:
+                  'session_id=$resolvedSessionId agent_id=$resolvedAgentId',
+            );
             yield ChatSessionStartedStreamEvent(
               sessionId: resolvedSessionId,
               agentId: resolvedAgentId,
+            );
+          } else {
+            _logIgnoredChatStreamEvent(
+              eventName: event.event,
+              reason: 'missing session_id or agent_id',
+              payload: payload,
             );
           }
           break;
         case 'text_delta':
           final delta = payload['delta'];
           if (delta is String && delta.isNotEmpty) {
+            _logParsedChatStreamEvent(
+              eventName: event.event,
+              details: 'delta_length=${delta.length}',
+            );
             yield ChatTextDeltaStreamEvent(delta: delta);
+          } else {
+            _logIgnoredChatStreamEvent(
+              eventName: event.event,
+              reason: 'missing delta',
+              payload: payload,
+            );
+          }
+          break;
+        case 'text_done':
+          final text = payload['text'];
+          if (text is String && text.isNotEmpty) {
+            _logParsedChatStreamEvent(
+              eventName: event.event,
+              details: 'text_length=${text.length}',
+            );
+            yield ChatTextDoneStreamEvent(text: text);
+          } else {
+            _logIgnoredChatStreamEvent(
+              eventName: event.event,
+              reason: 'missing text',
+              payload: payload,
+            );
+          }
+          break;
+        case 'function_call_delta':
+          final callId = payload['call_id'];
+          final name = payload['name'];
+          final argumentsDelta = payload['arguments_delta'];
+          if (callId is String &&
+              callId.isNotEmpty &&
+              name is String &&
+              name.isNotEmpty &&
+              argumentsDelta is String &&
+              argumentsDelta.isNotEmpty) {
+            _logParsedChatStreamEvent(
+              eventName: event.event,
+              details:
+                  'call_id=$callId name=$name delta_length=${argumentsDelta.length}',
+            );
+            yield ChatFunctionCallDeltaStreamEvent(
+              callId: callId,
+              name: name,
+              argumentsDelta: argumentsDelta,
+            );
+          } else {
+            _logIgnoredChatStreamEvent(
+              eventName: event.event,
+              reason: 'missing call_id, name or arguments_delta',
+              payload: payload,
+            );
+          }
+          break;
+        case 'function_call_done':
+          final callId = payload['call_id'];
+          final name = payload['name'];
+          if (callId is String &&
+              callId.isNotEmpty &&
+              name is String &&
+              name.isNotEmpty) {
+            _logParsedChatStreamEvent(
+              eventName: event.event,
+              details: 'call_id=$callId name=$name',
+            );
+            yield ChatFunctionCallDoneStreamEvent(
+              callId: callId,
+              name: name,
+              arguments: payload['arguments'],
+            );
+          } else {
+            _logIgnoredChatStreamEvent(
+              eventName: event.event,
+              reason: 'missing call_id or name',
+              payload: payload,
+            );
           }
           break;
         case 'done':
+          _logParsedChatStreamEvent(
+            eventName: event.event,
+            details: 'done=true',
+          );
           yield const ChatDoneStreamEvent();
           break;
         case 'error':
           final error = payload['error'];
+          _logParsedChatStreamEvent(
+            eventName: event.event,
+            details: 'error=${error is String ? error : 'unknown'}',
+          );
           yield ChatErrorStreamEvent(
             error: error is String && error.isNotEmpty
                 ? error
@@ -112,6 +236,11 @@ class HttpChatRepository implements ChatRepository {
           );
           break;
         default:
+          _logIgnoredChatStreamEvent(
+            eventName: event.event,
+            reason: 'unhandled event type',
+            payload: payload,
+          );
           break;
       }
     }
@@ -168,6 +297,53 @@ class HttpChatRepository implements ChatRepository {
     }
 
     return const <String, dynamic>{};
+  }
+
+  void _logIncomingSseEvent({
+    required SseMessage event,
+    required Map<String, dynamic> payload,
+  }) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    final payloadPreview = payload.isEmpty ? event.data : jsonEncode(payload);
+    debugPrint(
+      '[chat.stream.raw] event=${event.event} id=${event.lastEventId ?? ''} retry_ms=${event.retryMs ?? ''} payload=${_truncateForLog(payloadPreview)}',
+    );
+  }
+
+  void _logParsedChatStreamEvent({
+    required String eventName,
+    required String details,
+  }) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint('[chat.stream.parsed] event=$eventName $details');
+  }
+
+  void _logIgnoredChatStreamEvent({
+    required String eventName,
+    required String reason,
+    required Map<String, dynamic> payload,
+  }) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint(
+      '[chat.stream.ignored] event=$eventName reason=$reason payload=${_truncateForLog(jsonEncode(payload))}',
+    );
+  }
+
+  String _truncateForLog(String value, {int maxLength = 600}) {
+    if (value.length <= maxLength) {
+      return value;
+    }
+
+    return '${value.substring(0, maxLength)}...';
   }
 }
 

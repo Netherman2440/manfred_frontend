@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/chat/application/composer_controller.dart';
 import '../../../features/chat/domain/composer_state.dart';
+import '../../../features/sessions/application/session_overlay_providers.dart';
 import '../../../features/sessions/application/session_details_provider.dart';
 import '../../../features/sessions/application/sessions_list_provider.dart';
 import '../../../features/sessions/application/selected_session_provider.dart';
@@ -21,8 +22,8 @@ class ChatWorkspacePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final baseWorkspace = ManfredMockData.workspace;
     final selection = ref.watch(selectedSessionProvider);
-    final sessionsAsync = ref.watch(sessionsListProvider);
-    final detailsAsync = ref.watch(sessionDetailsProvider);
+    final sessionsAsync = ref.watch(sessionsListViewProvider);
+    final detailsAsync = ref.watch(activeSessionDetailsViewProvider);
     final composerState = ref.watch(composerControllerProvider);
     final sessions = sessionsAsync.valueOrNull ?? const <SessionListEntry>[];
 
@@ -35,7 +36,7 @@ class ChatWorkspacePage extends ConsumerWidget {
         detailsAsync.valueOrNull?.rootAgent.name ??
         selectedSession?.rootAgentName ??
         baseWorkspace.sessionView.rootAgent;
-    final sessionView = _buildStreamingSessionView(
+    final sessionView = _buildSessionView(
       composerState: composerState,
       baseWorkspace: baseWorkspace,
       selection: selection,
@@ -79,9 +80,8 @@ class ChatWorkspacePage extends ConsumerWidget {
                   conversationErrorMessage: _asyncErrorMessage(detailsAsync),
                   onCreateSession: () => _startDraft(ref),
                   onSelectSession: (session) => _selectSession(ref, session),
-                  onRetrySessions: () => ref.invalidate(sessionsListProvider),
-                  onRetryConversation: () =>
-                      ref.invalidate(sessionDetailsProvider),
+                  onRetrySessions: () => _retrySessions(ref),
+                  onRetryConversation: () => _retryConversation(ref, selection),
                 );
               }
 
@@ -96,9 +96,8 @@ class ChatWorkspacePage extends ConsumerWidget {
                 conversationErrorMessage: _asyncErrorMessage(detailsAsync),
                 onCreateSession: () => _startDraft(ref),
                 onSelectSession: (session) => _selectSession(ref, session),
-                onRetrySessions: () => ref.invalidate(sessionsListProvider),
-                onRetryConversation: () =>
-                    ref.invalidate(sessionDetailsProvider),
+                onRetrySessions: () => _retrySessions(ref),
+                onRetryConversation: () => _retryConversation(ref, selection),
               );
             },
           ),
@@ -141,7 +140,7 @@ class ChatWorkspacePage extends ConsumerWidget {
     return null;
   }
 
-  SessionViewMock _buildStreamingSessionView({
+  SessionViewMock _buildSessionView({
     required ComposerState composerState,
     required WorkspaceMock baseWorkspace,
     required SelectedSessionState selection,
@@ -150,50 +149,42 @@ class ChatWorkspacePage extends ConsumerWidget {
     required AsyncValue<SessionDetails?> detailsAsync,
     required String rootAgentName,
   }) {
-    final baseSessionView = _buildCurrentSessionView(
+    if (composerState.isStreaming &&
+        composerState.activeSessionId == null &&
+        selection.isDraft) {
+      final startedAt = composerState.streamingStartedAt ?? DateTime.now();
+      return SessionViewMock(
+        title: 'New session',
+        rootAgent: composerState.activeAgentName ?? rootAgentName,
+        entries: <ConversationEntryMock>[
+          if (composerState.pendingUserMessage != null &&
+              composerState.pendingUserMessage!.isNotEmpty)
+            UserConversationEntryMock(
+              author: baseWorkspace.currentUser.name,
+              dateLabel: _formatStreamingDate(startedAt),
+              timeLabel: _formatStreamingTime(startedAt),
+              body: composerState.pendingUserMessage!,
+            ),
+          if (composerState.streamingText.isNotEmpty)
+            AgentConversationEntryMock(
+              author: composerState.activeAgentName ?? rootAgentName,
+              dateLabel: _formatStreamingDate(startedAt),
+              timeLabel: _formatStreamingTime(startedAt),
+              body: composerState.streamingText,
+            ),
+        ],
+        isAgentTyping: composerState.streamingText.isEmpty,
+        threads: const <ConversationThreadMock>[],
+      );
+    }
+
+    return _buildCurrentSessionView(
       baseWorkspace: baseWorkspace,
       selection: selection,
       sessions: sessions,
       selectedSession: selectedSession,
       detailsAsync: detailsAsync,
     );
-
-    if (!composerState.isStreaming ||
-        composerState.activeSessionId == null ||
-        composerState.activeSessionId != selection.sessionId) {
-      return baseSessionView;
-    }
-
-    final now = DateTime.now();
-    final dateLabel = _formatStreamingDate(now);
-    final timeLabel = _formatStreamingTime(now);
-    final baseEntries = detailsAsync.valueOrNull == null
-        ? const <ConversationEntryMock>[]
-        : baseSessionView.entries;
-    final entries = <ConversationEntryMock>[...baseEntries];
-    if (composerState.pendingUserMessage != null &&
-        composerState.pendingUserMessage!.isNotEmpty) {
-      entries.add(
-        UserConversationEntryMock(
-          author: baseWorkspace.currentUser.name,
-          dateLabel: dateLabel,
-          timeLabel: timeLabel,
-          body: composerState.pendingUserMessage!,
-        ),
-      );
-    }
-    entries.add(
-      AgentConversationEntryMock(
-        author: composerState.activeAgentName ?? rootAgentName,
-        dateLabel: dateLabel,
-        timeLabel: timeLabel,
-        body: composerState.streamingText.isEmpty
-            ? 'Generowanie odpowiedzi...'
-            : composerState.streamingText,
-      ),
-    );
-
-    return baseSessionView.copyWith(entries: entries, clearReplyTarget: true);
   }
 
   SessionViewMock _buildCurrentSessionView({
@@ -204,12 +195,7 @@ class ChatWorkspacePage extends ConsumerWidget {
     required AsyncValue<SessionDetails?> detailsAsync,
   }) {
     if (selection.isDraft) {
-      return const SessionViewMock(
-        title: 'New session',
-        rootAgent: 'Manfred',
-        entries: <ConversationEntryMock>[],
-        threads: <ConversationThreadMock>[],
-      );
+      return buildDraftSessionViewMock();
     }
 
     final details = detailsAsync.valueOrNull;
@@ -281,6 +267,19 @@ class ChatWorkspacePage extends ConsumerWidget {
   void _selectSession(WidgetRef ref, SessionMock session) {
     ref.read(selectedSessionProvider.notifier).select(session.id);
     ref.read(composerControllerProvider.notifier).resetDraft();
+  }
+
+  void _retrySessions(WidgetRef ref) {
+    ref.read(sessionsListOverlayProvider.notifier).clear();
+    ref.invalidate(sessionsListProvider);
+  }
+
+  void _retryConversation(WidgetRef ref, SelectedSessionState selection) {
+    final sessionId = selection.sessionId;
+    if (sessionId != null) {
+      ref.read(sessionDetailsOverlayProvider.notifier).remove(sessionId);
+    }
+    ref.invalidate(sessionDetailsProvider);
   }
 
   String? _asyncErrorMessage(AsyncValue<dynamic> value) {
