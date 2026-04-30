@@ -114,6 +114,7 @@ SessionViewMock buildSessionViewMock(
     rootAgent: details.rootAgent.name,
     rootAgentId: details.rootAgent.id,
     entries: timeline.map((item) => item.entry).toList(growable: false),
+    isAgentTyping: details.isWaitingForTextResponse,
     threads: threads
         .map((thread) => thread.toThreadView())
         .toList(growable: false),
@@ -220,8 +221,9 @@ ConversationEntryMock? _mapRootToolCall({
 }) {
   final dateLabel = _formatDate(item.createdAt);
   final timeLabel = _formatTime(item.createdAt);
+  final hasStructuredArguments = _asObjectMap(item.arguments) != null;
 
-  if (item.name == 'delegate') {
+  if (item.name == 'delegate' && hasStructuredArguments) {
     final delegateCall = _parseDelegateCall(item.arguments);
     pendingDelegates.add(
       _PendingDelegateCall(
@@ -239,7 +241,7 @@ ConversationEntryMock? _mapRootToolCall({
     );
   }
 
-  if (item.name == 'ask_user') {
+  if (item.name == 'ask_user' && hasStructuredArguments) {
     return UserPingConversationEntryMock(
       author: rootAgentName,
       dateLabel: dateLabel,
@@ -303,7 +305,9 @@ void _populateThreadEntries({
     final linkedResult = _linkedResult(items, index);
     if (linkedResult != null) {
       consumedResultIds.add(linkedResult.id);
+      thread.observeActivity(linkedResult.createdAt);
     }
+    thread.observeActivity(item.createdAt);
 
     final entry = switch (item) {
       SessionMessageItem() => _mapThreadMessage(
@@ -354,8 +358,9 @@ ConversationEntryMock? _mapThreadToolCall({
 }) {
   final dateLabel = _formatDate(item.createdAt);
   final timeLabel = _formatTime(item.createdAt);
+  final hasStructuredArguments = _asObjectMap(item.arguments) != null;
 
-  if (item.name == 'delegate') {
+  if (item.name == 'delegate' && hasStructuredArguments) {
     final delegateCall = _parseDelegateCall(item.arguments);
     return AgentPingConversationEntryMock(
       author: thread.agentName,
@@ -366,13 +371,15 @@ ConversationEntryMock? _mapThreadToolCall({
     );
   }
 
-  if (item.name == 'ask_user') {
+  if (item.name == 'ask_user' && hasStructuredArguments) {
     final prompt = _extractAskUserPrompt(item.arguments);
     final hasUserReply = linkedResult != null;
     if (!hasUserReply) {
+      thread.markPendingAskUser(prompt: prompt, createdAt: item.createdAt);
       thread.markWaitingForUser();
     } else {
-      thread.markAskUserAnswered();
+      thread.clearPendingAskUser(createdAt: linkedResult.createdAt);
+      thread.markAskUserAnswered(linkedResult.createdAt);
     }
 
     thread.addEntry(
@@ -521,7 +528,7 @@ void _applyWaitingForToThreads({
       return builder;
     });
 
-    if (thread.hasAnsweredAskUser) {
+    if (thread.shouldIgnoreWaitingForFallback) {
       continue;
     }
 
@@ -563,20 +570,26 @@ ComposerReplyTargetMock? _buildReplyTarget({
       continue;
     }
     if (waitingAgentId.isNotEmpty &&
-        threadBuilders[waitingAgentId]?.hasAnsweredAskUser == true) {
+        threadBuilders[waitingAgentId]?.shouldIgnoreWaitingForFallback ==
+            true) {
       continue;
     }
 
     final description = waiting['description']?.toString().trim() ?? '';
     final toolName = waiting['name']?.toString().trim() ?? 'deliver';
     final waitingType = waiting['type']?.toString().trim() ?? 'unknown';
+    final thread = waitingAgentId.isEmpty
+        ? null
+        : threadBuilders[waitingAgentId];
     final agentName = switch (waitingAgentId) {
       _ when waitingAgentId.isEmpty || waitingAgentId == rootAgentId =>
         rootAgentName,
-      _ =>
-        threadBuilders[waitingAgentId]?.agentName ??
-            _fallbackAgentName(waitingAgentId),
+      _ => thread?.agentName ?? _fallbackAgentName(waitingAgentId),
     };
+    final pendingPrompt = thread?.latestPendingAskUserPrompt?.trim() ?? '';
+    final resolvedDescription = pendingPrompt.isNotEmpty
+        ? pendingPrompt
+        : description;
 
     return ComposerReplyTargetMock(
       deliveryAgentId: rootAgentId,
@@ -584,9 +597,9 @@ ComposerReplyTargetMock? _buildReplyTarget({
       agentName: agentName,
       waitingType: waitingType,
       toolName: toolName,
-      description: description.isEmpty
+      description: resolvedDescription.isEmpty
           ? 'Brak opisu oczekiwania.'
-          : description,
+          : resolvedDescription,
       waitingAgentId: waitingAgentId.isEmpty ? null : waitingAgentId,
     );
   }
@@ -897,7 +910,7 @@ class _ConversationThreadBuilder {
     required this.createdAt,
     required this.firstSequence,
     required this.placeholderLabel,
-  });
+  }) : lastActivityAt = createdAt;
 
   final String agentId;
   final String id;
@@ -907,21 +920,53 @@ class _ConversationThreadBuilder {
   int firstSequence;
   String? statusLabel;
   String placeholderLabel;
-  bool hasAnsweredAskUser = false;
+  DateTime lastActivityAt;
+  DateTime? lastAnsweredAskUserAt;
+  String? latestPendingAskUserPrompt;
+  DateTime? latestPendingAskUserAt;
   final List<ConversationEntryMock> entries = <ConversationEntryMock>[];
 
   void addEntry(ConversationEntryMock entry) {
     entries.add(entry);
   }
 
+  void observeActivity(DateTime value) {
+    if (value.isAfter(lastActivityAt)) {
+      lastActivityAt = value;
+    }
+  }
+
   void markWaitingForUser() {
     statusLabel = 'Czeka na odpowiedź użytkownika.';
   }
 
-  void markAskUserAnswered() {
-    hasAnsweredAskUser = true;
+  void markAskUserAnswered(DateTime answeredAt) {
+    lastAnsweredAskUserAt = answeredAt;
+    observeActivity(answeredAt);
     if (statusLabel == 'Czeka na odpowiedź użytkownika.') {
       statusLabel = null;
+    }
+  }
+
+  bool get hasAnsweredAskUser => lastAnsweredAskUserAt != null;
+
+  bool get shouldIgnoreWaitingForFallback =>
+      hasAnsweredAskUser && !lastActivityAt.isAfter(lastAnsweredAskUserAt!);
+
+  void markPendingAskUser({
+    required String prompt,
+    required DateTime createdAt,
+  }) {
+    latestPendingAskUserPrompt = prompt;
+    latestPendingAskUserAt = createdAt;
+    observeActivity(createdAt);
+  }
+
+  void clearPendingAskUser({required DateTime createdAt}) {
+    if (latestPendingAskUserAt == null ||
+        !latestPendingAskUserAt!.isAfter(createdAt)) {
+      latestPendingAskUserPrompt = null;
+      latestPendingAskUserAt = null;
     }
   }
 

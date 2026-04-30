@@ -16,6 +16,9 @@ class SelectedSessionController extends Notifier<SelectedSessionState> {
   SelectedSessionState build() => const SelectedSessionState.initial();
 
   void select(String sessionId) {
+    if (state.sessionId == sessionId && !state.isDraft) {
+      return;
+    }
     state = SelectedSessionState(sessionId: sessionId, isDraft: false);
   }
 

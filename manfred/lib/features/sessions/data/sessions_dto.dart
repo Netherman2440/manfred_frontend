@@ -333,11 +333,39 @@ class SessionItemDto {
 
 DateTime _readDateTime(Object? value) {
   if (value is String) {
-    return DateTime.tryParse(value)?.toLocal() ??
+    final normalized = value.trim();
+    if (normalized.isEmpty) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+
+    // Backend timestamps may arrive as UTC ISO strings without an explicit
+    // timezone suffix. Treat those as UTC before rendering them in local time.
+    final parsedUtc = _parseNaiveUtcDateTime(normalized);
+    if (parsedUtc != null) {
+      return parsedUtc.toLocal();
+    }
+
+    return DateTime.tryParse(normalized)?.toLocal() ??
         DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   return DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+DateTime? _parseNaiveUtcDateTime(String value) {
+  if (_hasExplicitTimezone(value) || !_looksLikeDateTime(value)) {
+    return null;
+  }
+
+  return DateTime.tryParse('${value}Z');
+}
+
+bool _hasExplicitTimezone(String value) {
+  return RegExp(r'(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$').hasMatch(value);
+}
+
+bool _looksLikeDateTime(String value) {
+  return value.contains(':');
 }
 
 int _readInt(Object? value) {

@@ -18,6 +18,36 @@ class ChatTextDeltaStreamEvent extends ChatStreamEvent {
   final String delta;
 }
 
+class ChatTextDoneStreamEvent extends ChatStreamEvent {
+  const ChatTextDoneStreamEvent({required this.text});
+
+  final String text;
+}
+
+class ChatFunctionCallDeltaStreamEvent extends ChatStreamEvent {
+  const ChatFunctionCallDeltaStreamEvent({
+    required this.callId,
+    required this.name,
+    required this.argumentsDelta,
+  });
+
+  final String callId;
+  final String name;
+  final String argumentsDelta;
+}
+
+class ChatFunctionCallDoneStreamEvent extends ChatStreamEvent {
+  const ChatFunctionCallDoneStreamEvent({
+    required this.callId,
+    required this.name,
+    required this.arguments,
+  });
+
+  final String callId;
+  final String name;
+  final Object? arguments;
+}
+
 class ChatDoneStreamEvent extends ChatStreamEvent {
   const ChatDoneStreamEvent();
 }

@@ -10,6 +10,7 @@ class ComposerState {
     required this.activeSessionId,
     required this.activeAgentId,
     required this.activeAgentName,
+    required this.streamingStartedAt,
   });
 
   const ComposerState.initial()
@@ -22,7 +23,8 @@ class ComposerState {
       streamingText = '',
       activeSessionId = null,
       activeAgentId = null,
-      activeAgentName = null;
+      activeAgentName = null,
+      streamingStartedAt = null;
 
   final String draft;
   final bool isSending;
@@ -34,6 +36,7 @@ class ComposerState {
   final String? activeSessionId;
   final String? activeAgentId;
   final String? activeAgentName;
+  final DateTime? streamingStartedAt;
 
   bool get isBusy => isSending || isStreaming || isStopping;
 
@@ -50,6 +53,7 @@ class ComposerState {
     String? activeSessionId,
     String? activeAgentId,
     String? activeAgentName,
+    DateTime? streamingStartedAt,
     bool clearErrorMessage = false,
     bool clearPendingUserMessage = false,
     bool clearStreamingText = false,
@@ -78,6 +82,9 @@ class ComposerState {
       activeAgentName: clearActiveRun
           ? null
           : activeAgentName ?? this.activeAgentName,
+      streamingStartedAt: clearActiveRun
+          ? null
+          : streamingStartedAt ?? this.streamingStartedAt,
     );
   }
 }

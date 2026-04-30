@@ -46,7 +46,7 @@ class ConversationColumn extends StatelessWidget {
           child: switch ((
             isLoading,
             errorMessage != null,
-            sessionView.entries.isEmpty,
+            sessionView.entries.isEmpty && !sessionView.isAgentTyping,
           )) {
             (true, _, _) => const Center(
               child: CircularProgressIndicator(strokeWidth: 2),
@@ -61,6 +61,8 @@ class ConversationColumn extends StatelessWidget {
             ),
             _ => ConversationList(
               entries: sessionView.entries,
+              showTypingIndicator: sessionView.isAgentTyping,
+              typingAuthor: sessionView.rootAgent,
               selectedThreadId: selectedThreadId,
               onSelectThread: onSelectThread,
             ),

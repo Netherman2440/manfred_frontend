@@ -72,6 +72,7 @@ class SessionViewMock {
     this.rootAgentId,
     this.threads = const <ConversationThreadMock>[],
     this.replyTarget,
+    this.isAgentTyping = false,
   });
 
   final String title;
@@ -80,6 +81,7 @@ class SessionViewMock {
   final List<ConversationEntryMock> entries;
   final List<ConversationThreadMock> threads;
   final ComposerReplyTargetMock? replyTarget;
+  final bool isAgentTyping;
 
   SessionViewMock copyWith({
     String? title,
@@ -89,6 +91,7 @@ class SessionViewMock {
     List<ConversationThreadMock>? threads,
     ComposerReplyTargetMock? replyTarget,
     bool clearReplyTarget = false,
+    bool? isAgentTyping,
   }) {
     return SessionViewMock(
       title: title ?? this.title,
@@ -97,6 +100,7 @@ class SessionViewMock {
       entries: entries ?? this.entries,
       threads: threads ?? this.threads,
       replyTarget: clearReplyTarget ? null : replyTarget ?? this.replyTarget,
+      isAgentTyping: isAgentTyping ?? this.isAgentTyping,
     );
   }
 }
