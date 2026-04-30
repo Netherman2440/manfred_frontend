@@ -117,7 +117,7 @@ class HttpChatRepository implements ChatRepository {
               resolvedAgentId.isNotEmpty) {
             _logParsedChatStreamEvent(
               eventName: event.event,
-              details:
+              details: () =>
                   'session_id=$resolvedSessionId agent_id=$resolvedAgentId',
             );
             yield ChatSessionStartedStreamEvent(
@@ -137,7 +137,7 @@ class HttpChatRepository implements ChatRepository {
           if (delta is String && delta.isNotEmpty) {
             _logParsedChatStreamEvent(
               eventName: event.event,
-              details: 'delta_length=${delta.length}',
+              details: () => 'delta_length=${delta.length}',
             );
             yield ChatTextDeltaStreamEvent(delta: delta);
           } else {
@@ -153,7 +153,7 @@ class HttpChatRepository implements ChatRepository {
           if (text is String && text.isNotEmpty) {
             _logParsedChatStreamEvent(
               eventName: event.event,
-              details: 'text_length=${text.length}',
+              details: () => 'text_length=${text.length}',
             );
             yield ChatTextDoneStreamEvent(text: text);
           } else {
@@ -176,7 +176,7 @@ class HttpChatRepository implements ChatRepository {
               argumentsDelta.isNotEmpty) {
             _logParsedChatStreamEvent(
               eventName: event.event,
-              details:
+              details: () =>
                   'call_id=$callId name=$name delta_length=${argumentsDelta.length}',
             );
             yield ChatFunctionCallDeltaStreamEvent(
@@ -201,7 +201,7 @@ class HttpChatRepository implements ChatRepository {
               name.isNotEmpty) {
             _logParsedChatStreamEvent(
               eventName: event.event,
-              details: 'call_id=$callId name=$name',
+              details: () => 'call_id=$callId name=$name',
             );
             yield ChatFunctionCallDoneStreamEvent(
               callId: callId,
@@ -219,7 +219,7 @@ class HttpChatRepository implements ChatRepository {
         case 'done':
           _logParsedChatStreamEvent(
             eventName: event.event,
-            details: 'done=true',
+            details: () => 'done=true',
           );
           yield const ChatDoneStreamEvent();
           break;
@@ -227,7 +227,7 @@ class HttpChatRepository implements ChatRepository {
           final error = payload['error'];
           _logParsedChatStreamEvent(
             eventName: event.event,
-            details: 'error=${error is String ? error : 'unknown'}',
+            details: () => 'error=${error is String ? error : 'unknown'}',
           );
           yield ChatErrorStreamEvent(
             error: error is String && error.isNotEmpty
@@ -315,13 +315,13 @@ class HttpChatRepository implements ChatRepository {
 
   void _logParsedChatStreamEvent({
     required String eventName,
-    required String details,
+    required String Function() details,
   }) {
     if (!kDebugMode) {
       return;
     }
 
-    debugPrint('[chat.stream.parsed] event=$eventName $details');
+    debugPrint('[chat.stream.parsed] event=$eventName ${details()}');
   }
 
   void _logIgnoredChatStreamEvent({
