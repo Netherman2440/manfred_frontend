@@ -14,6 +14,10 @@ class ConversationColumn extends StatelessWidget {
     required this.isLoading,
     required this.errorMessage,
     required this.onRetry,
+    this.onEditUserMessage,
+    this.onEditUserMessageDraftChanged,
+    this.onCancelEditUserMessage,
+    this.onSaveEditUserMessage,
     this.selectedThreadId,
     this.onSelectThread,
   });
@@ -23,6 +27,10 @@ class ConversationColumn extends StatelessWidget {
   final bool isLoading;
   final String? errorMessage;
   final VoidCallback onRetry;
+  final ValueChanged<String>? onEditUserMessage;
+  final ValueChanged<String>? onEditUserMessageDraftChanged;
+  final VoidCallback? onCancelEditUserMessage;
+  final VoidCallback? onSaveEditUserMessage;
   final String? selectedThreadId;
   final ValueChanged<String>? onSelectThread;
 
@@ -61,6 +69,10 @@ class ConversationColumn extends StatelessWidget {
             ),
             _ => ConversationList(
               entries: sessionView.entries,
+              onEditUserMessage: onEditUserMessage,
+              onEditUserMessageDraftChanged: onEditUserMessageDraftChanged,
+              onCancelEditUserMessage: onCancelEditUserMessage,
+              onSaveEditUserMessage: onSaveEditUserMessage,
               showTypingIndicator: sessionView.isAgentTyping,
               typingAuthor: sessionView.rootAgent,
               selectedThreadId: selectedThreadId,

@@ -1,3 +1,5 @@
+import 'session_attachment.dart';
+
 sealed class SessionItem {
   const SessionItem({
     required this.id,
@@ -22,10 +24,48 @@ class SessionMessageItem extends SessionItem {
     required super.createdAt,
     required this.role,
     required this.content,
+    this.attachments = const <SessionAttachment>[],
+    this.isEdited = false,
+    this.editedAt,
+    this.pendingStatus,
   }) : super(type: 'message');
 
   final String role;
   final String content;
+  final List<SessionAttachment> attachments;
+  final bool isEdited;
+  final DateTime? editedAt;
+  final String? pendingStatus;
+
+  SessionMessageItem copyWith({
+    String? id,
+    String? agentId,
+    int? sequence,
+    DateTime? createdAt,
+    String? role,
+    String? content,
+    List<SessionAttachment>? attachments,
+    bool? isEdited,
+    DateTime? editedAt,
+    String? pendingStatus,
+    bool clearEditedAt = false,
+    bool clearPendingStatus = false,
+  }) {
+    return SessionMessageItem(
+      id: id ?? this.id,
+      agentId: agentId ?? this.agentId,
+      sequence: sequence ?? this.sequence,
+      createdAt: createdAt ?? this.createdAt,
+      role: role ?? this.role,
+      content: content ?? this.content,
+      attachments: attachments ?? this.attachments,
+      isEdited: isEdited ?? this.isEdited,
+      editedAt: clearEditedAt ? null : editedAt ?? this.editedAt,
+      pendingStatus: clearPendingStatus
+          ? null
+          : pendingStatus ?? this.pendingStatus,
+    );
+  }
 }
 
 class SessionToolCallItem extends SessionItem {

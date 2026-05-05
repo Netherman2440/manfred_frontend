@@ -1,4 +1,5 @@
 import '../domain/chat_mutation_result.dart';
+import '../domain/queued_message.dart';
 
 class ChatMutationResultDto {
   const ChatMutationResultDto({
@@ -28,6 +29,31 @@ class ChatMutationResultDto {
       agentId: agentId,
       status: status,
       error: error,
+    );
+  }
+}
+
+class QueueMessageResultDto {
+  const QueueMessageResultDto({
+    required this.queuedInputId,
+    required this.position,
+  });
+
+  final String queuedInputId;
+  final int? position;
+
+  factory QueueMessageResultDto.fromJson(Map<String, dynamic> json) {
+    final rawPosition = json['position'];
+    return QueueMessageResultDto(
+      queuedInputId: json['queued_input_id'] as String? ?? '',
+      position: rawPosition is num ? rawPosition.toInt() : null,
+    );
+  }
+
+  QueuedMessage applyTo(QueuedMessage message) {
+    return message.copyWith(
+      queuedInputId: queuedInputId.isEmpty ? null : queuedInputId,
+      position: position,
     );
   }
 }

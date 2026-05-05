@@ -82,6 +82,26 @@ class ChatWorkspacePage extends ConsumerWidget {
                   onSelectSession: (session) => _selectSession(ref, session),
                   onRetrySessions: () => _retrySessions(ref),
                   onRetryConversation: () => _retryConversation(ref, selection),
+                  onEditUserMessage: (messageId) {
+                    ref
+                        .read(composerControllerProvider.notifier)
+                        .beginEdit(messageId);
+                  },
+                  onEditUserMessageDraftChanged: (value) {
+                    ref
+                        .read(composerControllerProvider.notifier)
+                        .updateEditDraft(value);
+                  },
+                  onCancelEditUserMessage: () {
+                    ref
+                        .read(composerControllerProvider.notifier)
+                        .cancelEditing();
+                  },
+                  onSaveEditUserMessage: () {
+                    ref
+                        .read(composerControllerProvider.notifier)
+                        .submitEdit(rootAgentName: rootAgentName);
+                  },
                 );
               }
 
@@ -98,6 +118,24 @@ class ChatWorkspacePage extends ConsumerWidget {
                 onSelectSession: (session) => _selectSession(ref, session),
                 onRetrySessions: () => _retrySessions(ref),
                 onRetryConversation: () => _retryConversation(ref, selection),
+                onEditUserMessage: (messageId) {
+                  ref
+                      .read(composerControllerProvider.notifier)
+                      .beginEdit(messageId);
+                },
+                onEditUserMessageDraftChanged: (value) {
+                  ref
+                      .read(composerControllerProvider.notifier)
+                      .updateEditDraft(value);
+                },
+                onCancelEditUserMessage: () {
+                  ref.read(composerControllerProvider.notifier).cancelEditing();
+                },
+                onSaveEditUserMessage: () {
+                  ref
+                      .read(composerControllerProvider.notifier)
+                      .submitEdit(rootAgentName: rootAgentName);
+                },
               );
             },
           ),
@@ -149,6 +187,13 @@ class ChatWorkspacePage extends ConsumerWidget {
     required AsyncValue<SessionDetails?> detailsAsync,
     required String rootAgentName,
   }) {
+    final canEditRootUserMessages =
+        selection.sessionId != null &&
+        !selection.isDraft &&
+        !composerState.isStreaming &&
+        !composerState.isSending &&
+        !composerState.isStopping &&
+        !composerState.hasQueuedMessages;
     if (composerState.isStreaming &&
         composerState.activeSessionId == null &&
         selection.isDraft) {
@@ -164,6 +209,17 @@ class ChatWorkspacePage extends ConsumerWidget {
               dateLabel: _formatStreamingDate(startedAt),
               timeLabel: _formatStreamingTime(startedAt),
               body: composerState.pendingUserMessage!,
+              attachments: composerState.pendingUserAttachments
+                  .map(
+                    (attachment) => ConversationAttachmentMock(
+                      id: attachment.attachmentId ?? attachment.localId,
+                      fileName: attachment.fileName,
+                      mediaType: attachment.mediaType,
+                      sizeBytes: attachment.sizeBytes,
+                      path: attachment.remotePath ?? attachment.localPath ?? '',
+                    ),
+                  )
+                  .toList(growable: false),
             ),
           if (composerState.streamingText.isNotEmpty)
             AgentConversationEntryMock(
@@ -180,19 +236,23 @@ class ChatWorkspacePage extends ConsumerWidget {
 
     return _buildCurrentSessionView(
       baseWorkspace: baseWorkspace,
+      composerState: composerState,
       selection: selection,
       sessions: sessions,
       selectedSession: selectedSession,
       detailsAsync: detailsAsync,
+      canEditRootUserMessages: canEditRootUserMessages,
     );
   }
 
   SessionViewMock _buildCurrentSessionView({
     required WorkspaceMock baseWorkspace,
+    required ComposerState composerState,
     required SelectedSessionState selection,
     required List<SessionListEntry> sessions,
     required SessionListEntry? selectedSession,
     required AsyncValue<SessionDetails?> detailsAsync,
+    required bool canEditRootUserMessages,
   }) {
     if (selection.isDraft) {
       return buildDraftSessionViewMock();
@@ -203,6 +263,10 @@ class ChatWorkspacePage extends ConsumerWidget {
       return buildSessionViewMock(
         details,
         currentUserName: baseWorkspace.currentUser.name,
+        canEditRootUserMessages: canEditRootUserMessages,
+        editingMessageId: composerState.editTarget?.itemId,
+        editingDraft: composerState.editTarget?.draft,
+        isSavingEdit: composerState.isEditing && composerState.isSending,
       );
     }
 

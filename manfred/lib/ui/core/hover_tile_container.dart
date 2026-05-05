@@ -8,6 +8,7 @@ class HoverTileContainer extends StatefulWidget {
     required this.child,
     this.padding = EdgeInsets.zero,
     this.onTap,
+    this.onHoverChanged,
     this.isActive = false,
     this.baseColor = Colors.transparent,
     this.highlightColor = ManfredColors.messageHover,
@@ -17,6 +18,7 @@ class HoverTileContainer extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
+  final ValueChanged<bool>? onHoverChanged;
   final bool isActive;
   final Color baseColor;
   final Color highlightColor;
@@ -32,12 +34,18 @@ class _HoverTileContainerState extends State<HoverTileContainer> {
   @override
   Widget build(BuildContext context) {
     final isInteractive = widget.onTap != null;
-    final isHighlighted = widget.isActive || (isInteractive && _isHovered);
+    final isHighlighted = widget.isActive || _isHovered;
 
     return MouseRegion(
       cursor: isInteractive ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: isInteractive ? (_) => setState(() => _isHovered = true) : null,
-      onExit: isInteractive ? (_) => setState(() => _isHovered = false) : null,
+      onEnter: (_) {
+        setState(() => _isHovered = true);
+        widget.onHoverChanged?.call(true);
+      },
+      onExit: (_) {
+        setState(() => _isHovered = false);
+        widget.onHoverChanged?.call(false);
+      },
       child: Material(
         color: Colors.transparent,
         child: InkWell(

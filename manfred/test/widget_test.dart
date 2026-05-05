@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:manfred/features/chat/data/chat_repository.dart';
 import 'package:manfred/features/chat/domain/chat_mutation_result.dart';
 import 'package:manfred/features/chat/domain/chat_stream_event.dart';
+import 'package:manfred/features/chat/domain/pending_attachment.dart';
+import 'package:manfred/features/chat/domain/queued_message.dart';
 import 'package:manfred/features/sessions/data/sessions_repository.dart';
 import 'package:manfred/features/sessions/domain/session_details.dart';
 import 'package:manfred/features/sessions/domain/session_item.dart';
@@ -1299,8 +1301,11 @@ class FakeChatRepository implements ChatRepository {
     this.onSend,
     this.onDeliver,
     this.onSendStream,
+    this.onSendStreamWithAttachments,
     this.onDeliverStream,
     this.onCancel,
+    this.onQueue,
+    this.onEditStream,
   });
 
   final Future<ChatMutationResult> Function({
@@ -1313,6 +1318,12 @@ class FakeChatRepository implements ChatRepository {
     String? sessionId,
   })?
   onSendStream;
+  final Stream<ChatStreamEvent> Function({
+    required String message,
+    String? sessionId,
+    required List<PendingAttachment> attachments,
+  })?
+  onSendStreamWithAttachments;
   final Stream<ChatStreamEvent> Function({
     required String agentId,
     required String callId,
@@ -1327,6 +1338,16 @@ class FakeChatRepository implements ChatRepository {
   onDeliver;
   final Future<ChatMutationResult> Function({required String sessionId})?
   onCancel;
+  final Future<QueuedMessage> Function({required QueuedMessage message})?
+  onQueue;
+  final Stream<ChatStreamEvent> Function({
+    required String sessionId,
+    required String itemId,
+    required String message,
+    required List<String> retainAttachmentIds,
+    List<PendingAttachment> attachments,
+  })?
+  onEditStream;
 
   @override
   Future<ChatMutationResult> sendMessage({
@@ -1343,7 +1364,15 @@ class FakeChatRepository implements ChatRepository {
   Stream<ChatStreamEvent> sendMessageStream({
     required String message,
     String? sessionId,
+    List<PendingAttachment> attachments = const <PendingAttachment>[],
   }) {
+    if (onSendStreamWithAttachments != null) {
+      return onSendStreamWithAttachments!(
+        message: message,
+        sessionId: sessionId,
+        attachments: attachments,
+      );
+    }
     if (onSendStream == null) {
       throw UnimplementedError('stream send should not be used in this test');
     }
@@ -1382,5 +1411,33 @@ class FakeChatRepository implements ChatRepository {
       throw UnimplementedError('cancel should not be used in this test');
     }
     return onCancel!(sessionId: sessionId);
+  }
+
+  @override
+  Future<QueuedMessage> queueMessage({required QueuedMessage message}) {
+    if (onQueue == null) {
+      throw UnimplementedError('queue should not be used in this test');
+    }
+    return onQueue!(message: message);
+  }
+
+  @override
+  Stream<ChatStreamEvent> editMessageStream({
+    required String sessionId,
+    required String itemId,
+    required String message,
+    required List<String> retainAttachmentIds,
+    List<PendingAttachment> attachments = const <PendingAttachment>[],
+  }) {
+    if (onEditStream == null) {
+      throw UnimplementedError('edit stream should not be used in this test');
+    }
+    return onEditStream!(
+      sessionId: sessionId,
+      itemId: itemId,
+      message: message,
+      retainAttachmentIds: retainAttachmentIds,
+      attachments: attachments,
+    );
   }
 }

@@ -19,6 +19,10 @@ class MobileWorkspaceLayout extends StatelessWidget {
     required this.onSelectSession,
     required this.onRetrySessions,
     required this.onRetryConversation,
+    this.onEditUserMessage,
+    this.onEditUserMessageDraftChanged,
+    this.onCancelEditUserMessage,
+    this.onSaveEditUserMessage,
   });
 
   final WorkspaceMock workspace;
@@ -30,6 +34,10 @@ class MobileWorkspaceLayout extends StatelessWidget {
   final ValueChanged<SessionMock> onSelectSession;
   final VoidCallback onRetrySessions;
   final VoidCallback onRetryConversation;
+  final ValueChanged<String>? onEditUserMessage;
+  final ValueChanged<String>? onEditUserMessageDraftChanged;
+  final VoidCallback? onCancelEditUserMessage;
+  final VoidCallback? onSaveEditUserMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +75,10 @@ class MobileWorkspaceLayout extends StatelessWidget {
                 isLoading: conversationLoading,
                 errorMessage: conversationErrorMessage,
                 onRetry: onRetryConversation,
+                onEditUserMessage: onEditUserMessage,
+                onEditUserMessageDraftChanged: onEditUserMessageDraftChanged,
+                onCancelEditUserMessage: onCancelEditUserMessage,
+                onSaveEditUserMessage: onSaveEditUserMessage,
               ),
             ),
           ),

@@ -170,10 +170,26 @@ class UserConversationEntryMock extends ConversationEntryMock {
     required super.timeLabel,
     required this.author,
     required this.body,
+    this.messageId,
+    this.attachments = const <ConversationAttachmentMock>[],
+    this.isEdited = false,
+    this.pendingStatus,
+    this.canEdit = false,
+    this.isEditing = false,
+    this.editingDraft,
+    this.isSavingEdit = false,
   });
 
   final String author;
   final String body;
+  final String? messageId;
+  final List<ConversationAttachmentMock> attachments;
+  final bool isEdited;
+  final String? pendingStatus;
+  final bool canEdit;
+  final bool isEditing;
+  final String? editingDraft;
+  final bool isSavingEdit;
 }
 
 @immutable
@@ -187,6 +203,23 @@ class AgentConversationEntryMock extends ConversationEntryMock {
 
   final String author;
   final String body;
+}
+
+@immutable
+class ConversationAttachmentMock {
+  const ConversationAttachmentMock({
+    required this.id,
+    required this.fileName,
+    required this.mediaType,
+    required this.sizeBytes,
+    required this.path,
+  });
+
+  final String id;
+  final String fileName;
+  final String mediaType;
+  final int sizeBytes;
+  final String path;
 }
 
 @immutable

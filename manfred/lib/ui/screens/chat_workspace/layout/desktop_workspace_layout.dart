@@ -24,6 +24,10 @@ class DesktopWorkspaceLayout extends StatefulWidget {
     required this.onSelectSession,
     required this.onRetrySessions,
     required this.onRetryConversation,
+    this.onEditUserMessage,
+    this.onEditUserMessageDraftChanged,
+    this.onCancelEditUserMessage,
+    this.onSaveEditUserMessage,
   });
 
   final WorkspaceMock workspace;
@@ -37,6 +41,10 @@ class DesktopWorkspaceLayout extends StatefulWidget {
   final ValueChanged<SessionMock> onSelectSession;
   final VoidCallback onRetrySessions;
   final VoidCallback onRetryConversation;
+  final ValueChanged<String>? onEditUserMessage;
+  final ValueChanged<String>? onEditUserMessageDraftChanged;
+  final VoidCallback? onCancelEditUserMessage;
+  final VoidCallback? onSaveEditUserMessage;
 
   @override
   State<DesktopWorkspaceLayout> createState() => _DesktopWorkspaceLayoutState();
@@ -182,6 +190,12 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                             isLoading: widget.conversationLoading,
                             errorMessage: widget.conversationErrorMessage,
                             onRetry: widget.onRetryConversation,
+                            onEditUserMessage: widget.onEditUserMessage,
+                            onEditUserMessageDraftChanged:
+                                widget.onEditUserMessageDraftChanged,
+                            onCancelEditUserMessage:
+                                widget.onCancelEditUserMessage,
+                            onSaveEditUserMessage: widget.onSaveEditUserMessage,
                             selectedThreadId: _selectedThreadId,
                             onSelectThread: (threadId) {
                               setState(() {
@@ -200,8 +214,8 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                           key: const ValueKey('additional-resize-handle'),
                           onDragUpdate: (delta) {
                             setState(() {
-                              _additionalWidth =
-                                  (_additionalWidth - delta).clamp(
+                              _additionalWidth = (_additionalWidth - delta)
+                                  .clamp(
                                     _minAdditionalWidth,
                                     maxAdditionalWidth,
                                   );

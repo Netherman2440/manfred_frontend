@@ -13,6 +13,10 @@ class ConversationList extends StatelessWidget {
   const ConversationList({
     super.key,
     required this.entries,
+    this.onEditUserMessage,
+    this.onEditUserMessageDraftChanged,
+    this.onCancelEditUserMessage,
+    this.onSaveEditUserMessage,
     this.showTypingIndicator = false,
     this.typingAuthor,
     this.selectedThreadId,
@@ -21,6 +25,10 @@ class ConversationList extends StatelessWidget {
   });
 
   final List<ConversationEntryMock> entries;
+  final ValueChanged<String>? onEditUserMessage;
+  final ValueChanged<String>? onEditUserMessageDraftChanged;
+  final VoidCallback? onCancelEditUserMessage;
+  final VoidCallback? onSaveEditUserMessage;
   final bool showTypingIndicator;
   final String? typingAuthor;
   final String? selectedThreadId;
@@ -43,7 +51,20 @@ class ConversationList extends StatelessWidget {
 
           final entry = entries[index];
           return switch (entry) {
-            UserConversationEntryMock() => UserMessageItem(entry: entry),
+            UserConversationEntryMock() => UserMessageItem(
+              entry: entry,
+              onEdit:
+                  onEditUserMessage == null ||
+                      !entry.canEdit ||
+                      entry.messageId == null
+                  ? null
+                  : () => onEditUserMessage!(entry.messageId!),
+              onEditChanged: entry.isEditing
+                  ? onEditUserMessageDraftChanged
+                  : null,
+              onCancelEdit: entry.isEditing ? onCancelEditUserMessage : null,
+              onSaveEdit: entry.isEditing ? onSaveEditUserMessage : null,
+            ),
             AgentConversationEntryMock() => AgentMessageItem(entry: entry),
             ToolCallConversationEntryMock() => ToolCallItem(entry: entry),
             AgentPingConversationEntryMock() => AgentPingItem(entry: entry),

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../chat/domain/queued_message.dart';
 import '../domain/session_details.dart';
+import '../domain/session_attachment.dart';
 import '../domain/session_item.dart';
 import '../domain/session_list_entry.dart';
 import 'selected_session_provider.dart';
@@ -50,6 +52,7 @@ class SessionsListOverlayController extends Notifier<List<SessionListEntry>> {
     required String rootAgentId,
     required String rootAgentName,
     required DateTime startedAt,
+    List<SessionAttachment> attachments = const <SessionAttachment>[],
   }) {
     final existing = _findSession(sessionId);
     upsert(
@@ -153,6 +156,7 @@ class SessionDetailsOverlayController
     required String rootAgentId,
     required String rootAgentName,
     required DateTime startedAt,
+    List<SessionAttachment> attachments = const <SessionAttachment>[],
   }) {
     final current = _resolveDetails(
       sessionId: sessionId,
@@ -171,6 +175,8 @@ class SessionDetailsOverlayController
         createdAt: startedAt,
         role: 'user',
         content: message,
+        attachments: attachments,
+        pendingStatus: 'sending',
       ),
     ];
 
@@ -367,6 +373,107 @@ class SessionDetailsOverlayController
         session: current.session.copyWith(updatedAt: finishedAt),
         rootAgent: current.rootAgent.copyWith(status: rootAgentStatus),
         isWaitingForTextResponse: false,
+        clearStreamingMessageItemId: true,
+      ),
+    );
+  }
+
+  void queuePendingMessage({
+    required String sessionId,
+    required String userId,
+    required String rootAgentId,
+    required String rootAgentName,
+    required QueuedMessage message,
+  }) {
+    final current = _resolveDetails(
+      sessionId: sessionId,
+      userId: userId,
+      rootAgentId: rootAgentId,
+      rootAgentName: rootAgentName,
+      fallbackTime: message.queuedAt,
+    );
+    final existingIndex = current.items.indexWhere(
+      (item) => item is SessionMessageItem && item.id == message.localId,
+    );
+    final nextItem = SessionMessageItem(
+      id: message.localId,
+      agentId: rootAgentId,
+      sequence: existingIndex == -1
+          ? _nextSequence(current.items)
+          : (current.items[existingIndex] as SessionMessageItem).sequence,
+      createdAt: message.queuedAt,
+      role: 'user',
+      content: message.message,
+      attachments: message.attachments
+          .map((attachment) => attachment.toSessionAttachment())
+          .toList(growable: false),
+      pendingStatus: 'queued',
+    );
+
+    final items = List<SessionItem>.from(current.items);
+    if (existingIndex == -1) {
+      items.add(nextItem);
+    } else {
+      items[existingIndex] = nextItem;
+    }
+
+    replace(
+      current.copyWith(
+        session: current.session.copyWith(
+          updatedAt: message.queuedAt,
+          status: 'active',
+        ),
+        rootAgent: current.rootAgent.copyWith(status: current.rootAgent.status),
+        items: items,
+      ),
+    );
+  }
+
+  void startEditRegeneration({
+    required String sessionId,
+    required String itemId,
+    required String userId,
+    required String rootAgentId,
+    required String rootAgentName,
+    required String message,
+    required List<SessionAttachment> attachments,
+    required DateTime startedAt,
+  }) {
+    final current = _resolveDetails(
+      sessionId: sessionId,
+      userId: userId,
+      rootAgentId: rootAgentId,
+      rootAgentName: rootAgentName,
+      fallbackTime: startedAt,
+    );
+    final targetIndex = current.items.indexWhere(
+      (item) => item is SessionMessageItem && item.id == itemId,
+    );
+    if (targetIndex == -1) {
+      return;
+    }
+
+    final targetItem = current.items[targetIndex] as SessionMessageItem;
+    final items = current.items
+        .where((item) => item.sequence <= targetItem.sequence)
+        .toList(growable: true);
+    items[items.length - 1] = targetItem.copyWith(
+      content: message,
+      attachments: attachments,
+      isEdited: true,
+      editedAt: startedAt,
+      pendingStatus: 'sending',
+    );
+
+    replace(
+      current.copyWith(
+        session: current.session.copyWith(
+          updatedAt: startedAt,
+          status: 'active',
+        ),
+        rootAgent: current.rootAgent.copyWith(status: 'running'),
+        items: items,
+        isWaitingForTextResponse: true,
         clearStreamingMessageItemId: true,
       ),
     );

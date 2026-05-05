@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../domain/session_attachment.dart';
 import '../domain/session_details.dart';
 import '../domain/session_item.dart';
 import '../domain/session_list_entry.dart';
@@ -235,6 +236,9 @@ class SessionItemDto {
     this.arguments,
     this.toolResult,
     this.isError,
+    this.attachments = const <SessionAttachmentDto>[],
+    this.isEdited = false,
+    this.editedAt,
   });
 
   final String id;
@@ -249,6 +253,9 @@ class SessionItemDto {
   final Object? arguments;
   final Object? toolResult;
   final bool? isError;
+  final List<SessionAttachmentDto> attachments;
+  final bool isEdited;
+  final DateTime? editedAt;
 
   factory SessionItemDto.fromJson(Map<String, dynamic> json) {
     final agentId = json['agent_id'] as String? ?? '';
@@ -270,6 +277,11 @@ class SessionItemDto {
       );
     }
 
+    final rawAttachments = json['attachments'];
+    final attachments = rawAttachments is List<Object?>
+        ? rawAttachments
+        : const <Object?>[];
+
     return SessionItemDto(
       id: json['id'] as String? ?? '',
       type: json['type'] as String? ?? 'unknown',
@@ -283,6 +295,12 @@ class SessionItemDto {
       arguments: json['arguments'],
       toolResult: json['tool_result'],
       isError: json['is_error'] as bool?,
+      attachments: attachments
+          .whereType<Map<String, dynamic>>()
+          .map(SessionAttachmentDto.fromJson)
+          .toList(growable: false),
+      isEdited: json['is_edited'] as bool? ?? false,
+      editedAt: _readOptionalDateTime(json['edited_at']),
     );
   }
 
@@ -326,8 +344,49 @@ class SessionItemDto {
           createdAt: createdAt,
           role: role ?? 'assistant',
           content: content ?? '',
+          attachments: attachments
+              .map((attachment) => attachment.toDomain())
+              .toList(growable: false),
+          isEdited: isEdited,
+          editedAt: editedAt,
         );
     }
+  }
+}
+
+class SessionAttachmentDto {
+  const SessionAttachmentDto({
+    required this.id,
+    required this.fileName,
+    required this.mediaType,
+    required this.sizeBytes,
+    required this.path,
+  });
+
+  final String id;
+  final String fileName;
+  final String mediaType;
+  final int sizeBytes;
+  final String path;
+
+  factory SessionAttachmentDto.fromJson(Map<String, dynamic> json) {
+    return SessionAttachmentDto(
+      id: json['id'] as String? ?? '',
+      fileName: json['file_name'] as String? ?? '',
+      mediaType: json['media_type'] as String? ?? 'application/octet-stream',
+      sizeBytes: _readInt(json['size_bytes']),
+      path: json['path'] as String? ?? '',
+    );
+  }
+
+  SessionAttachment toDomain() {
+    return SessionAttachment(
+      id: id,
+      fileName: fileName,
+      mediaType: mediaType,
+      sizeBytes: sizeBytes,
+      path: path,
+    );
   }
 }
 
@@ -350,6 +409,19 @@ DateTime _readDateTime(Object? value) {
   }
 
   return DateTime.fromMillisecondsSinceEpoch(0);
+}
+
+DateTime? _readOptionalDateTime(Object? value) {
+  if (value == null) {
+    return null;
+  }
+
+  final parsed = _readDateTime(value);
+  if (parsed.millisecondsSinceEpoch == 0) {
+    return null;
+  }
+
+  return parsed;
 }
 
 DateTime? _parseNaiveUtcDateTime(String value) {

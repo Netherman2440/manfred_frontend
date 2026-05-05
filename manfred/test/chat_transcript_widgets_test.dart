@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manfred/ui/mock/manfred_mock_data.dart';
 import 'package:manfred/ui/screens/chat_workspace/columns/additional_column.dart';
@@ -165,5 +168,96 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Czeka na odpowiedź użytkownika.'), findsWidgets);
+  });
+
+  testWidgets('user message shows edit icon on hover and edits inline', (
+    WidgetTester tester,
+  ) async {
+    var draft = 'Aktualizuję brief.';
+    var isEditing = false;
+    var saveTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ManfredTheme.dark(),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => ConversationList(
+              entries: <ConversationEntryMock>[
+                UserConversationEntryMock(
+                  author: 'NetHerman2440',
+                  dateLabel: '30.04.2026',
+                  timeLabel: '10:15',
+                  body: 'Aktualizuję brief.',
+                  messageId: 'message-1',
+                  isEdited: true,
+                  pendingStatus: 'queued',
+                  canEdit: true,
+                  isEditing: isEditing,
+                  editingDraft: draft,
+                  attachments: const <ConversationAttachmentMock>[
+                    ConversationAttachmentMock(
+                      id: 'attachment-1',
+                      fileName: 'brief.pdf',
+                      mediaType: 'application/pdf',
+                      sizeBytes: 2048,
+                      path: '/tmp/brief.pdf',
+                    ),
+                  ],
+                ),
+              ],
+              onEditUserMessage: (_) {
+                setState(() {
+                  isEditing = true;
+                });
+              },
+              onEditUserMessageDraftChanged: (value) {
+                setState(() {
+                  draft = value;
+                });
+              },
+              onCancelEditUserMessage: () {
+                setState(() {
+                  isEditing = false;
+                });
+              },
+              onSaveEditUserMessage: () {
+                saveTapped = true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Edited'), findsNothing);
+    expect(find.text('Queued'), findsNothing);
+    expect(find.textContaining('brief.pdf'), findsOneWidget);
+    expect(find.byIcon(Icons.edit_rounded), findsNothing);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(find.text('Aktualizuję brief.')));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.edit_rounded), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.edit_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('Save'), findsNothing);
+    expect(find.text('Cancel'), findsNothing);
+    expect(find.text('Esc anuluje, Enter zapisuje'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Nowa treść');
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(draft, 'Nowa treść');
+    expect(saveTapped, isTrue);
   });
 }
