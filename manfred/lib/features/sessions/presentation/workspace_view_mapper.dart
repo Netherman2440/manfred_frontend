@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../../../ui/mock/manfred_mock_data.dart';
+import '../domain/session_attachment.dart';
 import '../domain/session_details.dart';
 import '../domain/session_item.dart';
 import '../domain/session_list_entry.dart';
@@ -27,6 +28,10 @@ List<SessionMock> buildSessionMocks(
 SessionViewMock buildSessionViewMock(
   SessionDetails details, {
   required String currentUserName,
+  bool canEditRootUserMessages = false,
+  String? editingMessageId,
+  String? editingDraft,
+  bool isSavingEdit = false,
 }) {
   final rootItems = <SessionItem>[];
   final nonRootItemsByAgent = <String, List<SessionItem>>{};
@@ -48,6 +53,10 @@ SessionViewMock buildSessionViewMock(
     rootAgentName: details.rootAgent.name,
     currentUserName: currentUserName,
     pendingDelegates: pendingDelegates,
+    canEditRootUserMessages: canEditRootUserMessages,
+    editingMessageId: editingMessageId,
+    editingDraft: editingDraft,
+    isSavingEdit: isSavingEdit,
   );
 
   final threadBuilders = <String, _ConversationThreadBuilder>{};
@@ -136,6 +145,10 @@ List<_TimelineEntry> _buildRootTimelineEntries({
   required String rootAgentName,
   required String currentUserName,
   required List<_PendingDelegateCall> pendingDelegates,
+  required bool canEditRootUserMessages,
+  required String? editingMessageId,
+  required String? editingDraft,
+  required bool isSavingEdit,
 }) {
   final entries = <_TimelineEntry>[];
   final consumedResultIds = <String>{};
@@ -156,6 +169,10 @@ List<_TimelineEntry> _buildRootTimelineEntries({
         item: item,
         rootAgentName: rootAgentName,
         currentUserName: currentUserName,
+        canEdit: canEditRootUserMessages,
+        isEditing: editingMessageId == item.id,
+        editingDraft: editingDraft,
+        isSavingEdit: isSavingEdit,
       ),
       SessionToolCallItem() => _mapRootToolCall(
         item: item,
@@ -191,6 +208,10 @@ ConversationEntryMock? _mapRootMessage({
   required SessionMessageItem item,
   required String rootAgentName,
   required String currentUserName,
+  required bool canEdit,
+  required bool isEditing,
+  required String? editingDraft,
+  required bool isSavingEdit,
 }) {
   final dateLabel = _formatDate(item.createdAt);
   final timeLabel = _formatTime(item.createdAt);
@@ -201,6 +222,16 @@ ConversationEntryMock? _mapRootMessage({
       dateLabel: dateLabel,
       timeLabel: timeLabel,
       body: item.content,
+      messageId: item.id,
+      attachments: item.attachments
+          .map(_mapConversationAttachment)
+          .toList(growable: false),
+      isEdited: item.isEdited,
+      pendingStatus: item.pendingStatus,
+      canEdit: canEdit && item.pendingStatus == null,
+      isEditing: isEditing,
+      editingDraft: isEditing ? (editingDraft ?? item.content) : null,
+      isSavingEdit: isEditing && isSavingEdit,
     );
   }
 
@@ -209,6 +240,16 @@ ConversationEntryMock? _mapRootMessage({
     dateLabel: dateLabel,
     timeLabel: timeLabel,
     body: item.content,
+  );
+}
+
+ConversationAttachmentMock _mapConversationAttachment(SessionAttachment item) {
+  return ConversationAttachmentMock(
+    id: item.id,
+    fileName: item.fileName,
+    mediaType: item.mediaType,
+    sizeBytes: item.sizeBytes,
+    path: item.path,
   );
 }
 
