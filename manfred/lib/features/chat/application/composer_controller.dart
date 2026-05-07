@@ -92,13 +92,21 @@ class ComposerController extends Notifier<ComposerState> {
       return;
     }
 
-    final item = details.items.whereType<SessionMessageItem>().firstWhere(
-      (candidate) =>
-          candidate.id == itemId &&
+    SessionMessageItem? item;
+    for (final candidate in details.items.whereType<SessionMessageItem>()) {
+      if (candidate.id == itemId &&
           candidate.role == 'user' &&
-          candidate.agentId == details.rootAgent.id,
-      orElse: () => throw StateError('Editable message not found'),
-    );
+          candidate.agentId == details.rootAgent.id) {
+        item = candidate;
+        break;
+      }
+    }
+    if (item == null) {
+      state = state.copyWith(
+        errorMessage: 'Nie udało się przygotować wiadomości do edycji.',
+      );
+      return;
+    }
 
     state = state.copyWith(
       editTarget: EditTarget(
@@ -322,10 +330,13 @@ class ComposerController extends Notifier<ComposerState> {
     }
 
     final startedAt = DateTime.now();
-    final attachments = editTarget.attachments;
-    final retainAttachmentIds = attachments
+    final allAttachments = editTarget.attachments;
+    final retainAttachmentIds = allAttachments
         .where((attachment) => attachment.isExisting)
         .map((attachment) => attachment.attachmentId!)
+        .toList(growable: false);
+    final attachments = allAttachments
+        .where((attachment) => !attachment.isExisting)
         .toList(growable: false);
     final selectedDetails = ref
         .read(activeSessionDetailsViewProvider)
@@ -345,7 +356,7 @@ class ComposerController extends Notifier<ComposerState> {
           rootAgentId: resolvedAgent.id,
           rootAgentName: resolvedAgent.name,
           message: message,
-          attachments: _toSessionAttachments(attachments),
+          attachments: _toSessionAttachments(allAttachments),
           startedAt: startedAt,
         );
     if (selectedDetails != null) {
@@ -369,7 +380,7 @@ class ComposerController extends Notifier<ComposerState> {
           isStreaming: true,
           isStopping: false,
           pendingUserMessage: message,
-          pendingUserAttachments: attachments,
+          pendingUserAttachments: allAttachments,
           streamingText: '',
           activeSessionId: editTarget.sessionId,
           activeAgentId: resolvedAgent.id,
@@ -798,11 +809,18 @@ class ComposerController extends Notifier<ComposerState> {
       return false;
     }
 
-    for (var index = 0; index < canonical.length; index += 1) {
-      if (canonical[index].fileName != pending[index].fileName ||
-          canonical[index].sizeBytes != pending[index].sizeBytes) {
+    final counts = <String, int>{};
+    for (final a in canonical) {
+      final key = '${a.fileName}:${a.sizeBytes}';
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    for (final a in pending) {
+      final key = '${a.fileName}:${a.sizeBytes}';
+      final remaining = counts[key];
+      if (remaining == null || remaining == 0) {
         return false;
       }
+      counts[key] = remaining - 1;
     }
 
     return true;

@@ -457,7 +457,13 @@ class SessionDetailsOverlayController
     final items = current.items
         .where((item) => item.sequence <= targetItem.sequence)
         .toList(growable: true);
-    items[items.length - 1] = targetItem.copyWith(
+    final filteredIndex = items.indexWhere(
+      (item) => item is SessionMessageItem && item.id == itemId,
+    );
+    if (filteredIndex == -1) {
+      return;
+    }
+    items[filteredIndex] = targetItem.copyWith(
       content: message,
       attachments: attachments,
       isEdited: true,

@@ -228,7 +228,7 @@ ConversationEntryMock? _mapRootMessage({
           .toList(growable: false),
       isEdited: item.isEdited,
       pendingStatus: item.pendingStatus,
-      canEdit: canEdit,
+      canEdit: canEdit && item.pendingStatus == null,
       isEditing: isEditing,
       editingDraft: isEditing ? (editingDraft ?? item.content) : null,
       isSavingEdit: isEditing && isSavingEdit,

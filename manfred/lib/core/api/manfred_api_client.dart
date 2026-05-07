@@ -128,8 +128,15 @@ class ManfredApiClient {
     String path, {
     required Map<String, String> fields,
     List<ApiMultipartFile> files = const <ApiMultipartFile>[],
+    List<(String, String)> multiFields = const <(String, String)>[],
   }) async* {
-    yield* sendMultipartSse('PATCH', path, fields: fields, files: files);
+    yield* sendMultipartSse(
+      'PATCH',
+      path,
+      fields: fields,
+      files: files,
+      multiFields: multiFields,
+    );
   }
 
   Stream<SseMessage> sendMultipartSse(
@@ -137,10 +144,14 @@ class ManfredApiClient {
     String path, {
     required Map<String, String> fields,
     List<ApiMultipartFile> files = const <ApiMultipartFile>[],
+    List<(String, String)> multiFields = const <(String, String)>[],
   }) async* {
     final request = http.MultipartRequest(method, _buildUri(path));
     request.headers['Accept'] = 'text/event-stream';
     request.fields.addAll(fields);
+    for (final (key, value) in multiFields) {
+      request.files.add(http.MultipartFile.fromString(key, value));
+    }
     request.files.addAll(await _buildMultipartFiles(files));
 
     final response = await _client.send(request);
@@ -152,9 +163,16 @@ class ManfredApiClient {
   ) async {
     final result = <http.MultipartFile>[];
     for (final file in files) {
-      final mediaType = file.mediaType == null
-          ? null
-          : MediaType.parse(file.mediaType!);
+      MediaType? mediaType;
+      if (file.mediaType != null) {
+        try {
+          mediaType = MediaType.parse(file.mediaType!);
+        } on FormatException catch (error) {
+          throw ApiError(
+            message: 'Invalid attachment media type "${file.mediaType}": ${error.message}',
+          );
+        }
+      }
       if (file.bytes != null) {
         result.add(
           http.MultipartFile.fromBytes(

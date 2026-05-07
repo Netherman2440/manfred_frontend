@@ -477,8 +477,14 @@ void main() {
     expect(multipart.url.path, '/api/v1/chat/sessions/session-1/items/item-1');
     expect(multipart.fields['message'], 'edited');
     expect(multipart.fields['stream'], 'true');
-    expect(multipart.fields['retain_attachment_ids[0]'], 'keep-1');
-    expect(multipart.files.single.filename, 'new.txt');
+    final retainField = multipart.files.firstWhere(
+      (f) => f.field == 'retain_attachment_ids',
+    );
+    expect(await retainField.finalize().bytesToString(), 'keep-1');
+    expect(
+      multipart.files.where((f) => f.field != 'retain_attachment_ids').single.filename,
+      'new.txt',
+    );
   });
 
   test('postJson exposes HTTP status for non-JSON error responses', () async {

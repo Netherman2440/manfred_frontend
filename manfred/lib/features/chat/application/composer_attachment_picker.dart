@@ -10,6 +10,8 @@ abstract class ComposerAttachmentPicker {
 class FilePickerComposerAttachmentPicker implements ComposerAttachmentPicker {
   const FilePickerComposerAttachmentPicker();
 
+  static int _nextId = 0;
+
   @override
   Future<List<PendingAttachment>> pickAttachments() async {
     final result = await FilePicker.platform.pickFiles(
@@ -33,7 +35,7 @@ class FilePickerComposerAttachmentPicker implements ComposerAttachmentPicker {
     }
 
     return PendingAttachment(
-      localId: '${DateTime.now().microsecondsSinceEpoch}-$resolvedName',
+      localId: 'attachment-${_nextId++}',
       fileName: resolvedName,
       mediaType: _resolveMediaType(file),
       sizeBytes: file.size,

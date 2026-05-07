@@ -59,8 +59,7 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
     final canSend =
         !state.isSending &&
         !state.isEditing &&
-        state.draft.trim().isNotEmpty &&
-        !state.isStreaming;
+        state.draft.trim().isNotEmpty;
     final textTheme = Theme.of(context).textTheme;
     final replyTarget = widget.replyTarget;
     final showStop = state.canStop;

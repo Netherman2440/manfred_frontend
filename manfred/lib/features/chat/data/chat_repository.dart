@@ -173,12 +173,6 @@ class HttpChatRepository implements ChatRepository {
     List<PendingAttachment> attachments = const <PendingAttachment>[],
   }) async* {
     final path = '/chat/sessions/$sessionId/items/$itemId';
-    final fields = <String, String>{
-      'message': message,
-      'stream': 'true',
-      for (var index = 0; index < retainAttachmentIds.length; index += 1)
-        'retain_attachment_ids[$index]': retainAttachmentIds[index],
-    };
 
     if (attachments.isEmpty) {
       yield* _streamRequest(
@@ -196,8 +190,11 @@ class HttpChatRepository implements ChatRepository {
     yield* _streamMultipartRequest(
       path,
       method: 'PATCH',
-      fields: fields,
+      fields: <String, String>{'message': message, 'stream': 'true'},
       attachments: attachments,
+      multiFields: retainAttachmentIds
+          .map((id) => ('retain_attachment_ids', id))
+          .toList(growable: false),
     );
   }
 
@@ -308,12 +305,14 @@ class HttpChatRepository implements ChatRepository {
     String method = 'POST',
     required Map<String, String> fields,
     required List<PendingAttachment> attachments,
+    List<(String, String)> multiFields = const <(String, String)>[],
   }) async* {
     final stream = switch (method) {
       'PATCH' => _apiClient.patchMultipartSse(
         path,
         fields: fields,
         files: _toMultipartFiles(attachments),
+        multiFields: multiFields,
       ),
       _ => _apiClient.postMultipartSse(
         path,

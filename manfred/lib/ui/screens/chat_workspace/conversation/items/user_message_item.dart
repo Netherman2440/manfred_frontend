@@ -143,7 +143,7 @@ class _UserMessageItemState extends State<UserMessageItem> {
                 child: _isHovered
                     ? Tooltip(
                         key: const ValueKey('edit-action'),
-                        message: 'Edit message',
+                        message: 'Edytuj wiadomość',
                         child: IconButton(
                           onPressed: widget.onEdit,
                           icon: const Icon(Icons.edit_rounded, size: 18),
@@ -195,8 +195,6 @@ class _InlineEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canSave = !isSaving && controller.text.trim().isNotEmpty;
-
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -205,7 +203,7 @@ class _InlineEditor extends StatelessWidget {
           }
         },
         const SingleActivator(LogicalKeyboardKey.enter): () {
-          if (canSave) {
+          if (!isSaving && controller.text.trim().isNotEmpty) {
             onSave?.call();
           }
         },
