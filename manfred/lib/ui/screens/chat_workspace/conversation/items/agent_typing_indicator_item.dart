@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/agent_avatar.dart';
 import '../../../../core/hover_tile_container.dart';
 import '../../../../theme/manfred_theme.dart';
+import '../../../../../features/agents/application/agent_editor_provider.dart';
 
-class AgentTypingIndicatorItem extends StatefulWidget {
+class AgentTypingIndicatorItem extends ConsumerStatefulWidget {
   const AgentTypingIndicatorItem({super.key, required this.author});
 
   final String author;
 
   @override
-  State<AgentTypingIndicatorItem> createState() =>
+  ConsumerState<AgentTypingIndicatorItem> createState() =>
       _AgentTypingIndicatorItemState();
 }
 
-class _AgentTypingIndicatorItemState extends State<AgentTypingIndicatorItem>
+class _AgentTypingIndicatorItemState
+    extends ConsumerState<AgentTypingIndicatorItem>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -30,6 +33,9 @@ class _AgentTypingIndicatorItemState extends State<AgentTypingIndicatorItem>
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final agentDetail = ref.watch(agentDetailByNameProvider(widget.author));
+    final agentColor =
+        agentDetail.valueOrNull?.color ?? ManfredColors.accentGreen;
 
     return HoverTileContainer(
       key: const ValueKey('agent-typing-indicator'),
@@ -39,7 +45,7 @@ class _AgentTypingIndicatorItemState extends State<AgentTypingIndicatorItem>
         children: <Widget>[
           AgentAvatar(
             label: _avatarLabel(widget.author),
-            accentColor: ManfredColors.accentGreen,
+            accentColor: agentColor,
           ),
           const SizedBox(width: 14),
           AnimatedBuilder(

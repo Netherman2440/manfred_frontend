@@ -168,6 +168,7 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
 
       await ref.read(agentsListProvider.notifier).refresh();
       ref.invalidate(selectedAgentDetailProvider);
+      ref.invalidate(agentDetailByNameProvider(input.name));
 
       if (mounted) {
         ref.read(workspaceModeProvider.notifier).state =
@@ -267,86 +268,37 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
           // Form content
           Expanded(
             child: SingleChildScrollView(
+              padding: const EdgeInsets.only(right: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  // Name + color row
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text('Name', style: textTheme.labelMedium),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: _nameController,
-                              enabled: !isEditMode,
-                              onChanged: (_) {
-                                setState(() {
-                                  _formState.name = _nameController.text;
-                                  _nameError = null;
-                                });
-                              },
-                              decoration: InputDecoration(
-                                hintText: 'my-agent',
-                                errorText: _nameError,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text('Color', style: textTheme.labelMedium),
-                          const SizedBox(height: 6),
-                          GestureDetector(
-                            onTap: () async {
-                              final picked = await showDialog<Color>(
-                                context: context,
-                                builder: (ctx) => ColorPaletteDialog(
-                                  selectedColor: _formState.color,
-                                  onColorSelected: (c) =>
-                                      Navigator.pop(ctx, c),
-                                ),
-                              );
-                              if (picked != null) {
-                                setState(() => _formState.color = picked);
-                              }
-                            },
-                            child: Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: _formState.color ??
-                                    ManfredColors.panelAltBackground,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: ManfredColors.borderStrong,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-
-                  // Color preview strip with name
-                  if (_nameController.text.isNotEmpty ||
-                      _formState.color != null) ...<Widget>[
-                    const SizedBox(height: 10),
-                    ColorPickerField(
-                      agentName: _nameController.text,
-                      selectedColor: _formState.color,
-                      onColorChanged: (c) {
-                        setState(() => _formState.color = c);
-                      },
+                  // Name row
+                  Text('Name', style: textTheme.labelMedium),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _nameController,
+                    enabled: !isEditMode,
+                    onChanged: (_) {
+                      setState(() {
+                        _formState.name = _nameController.text;
+                        _nameError = null;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'my-agent',
+                      errorText: _nameError,
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Color preview + picker
+                  ColorPickerField(
+                    agentName: _nameController.text,
+                    selectedColor: _formState.color,
+                    onColorChanged: (c) {
+                      setState(() => _formState.color = c);
+                    },
+                  ),
 
                   const SizedBox(height: 16),
 
