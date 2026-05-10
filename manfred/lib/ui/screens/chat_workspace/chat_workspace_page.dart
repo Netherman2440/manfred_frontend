@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../features/agents/application/selected_agent_provider.dart';
 import '../../../features/chat/application/composer_controller.dart';
 import '../../../features/chat/domain/composer_state.dart';
 import '../../../features/sessions/application/session_overlay_providers.dart';
@@ -29,13 +30,14 @@ class ChatWorkspacePage extends ConsumerWidget {
 
     _maybeSelectFirstSession(ref, selection, sessions);
 
+    final selectedAgentName = ref.watch(selectedAgentNameProvider);
     final selectedSession = selection.sessionId == null
         ? null
         : _findSelectedSession(sessions, selection.sessionId);
     final rootAgentName =
         detailsAsync.valueOrNull?.rootAgent.name ??
         selectedSession?.rootAgentName ??
-        baseWorkspace.sessionView.rootAgent;
+        selectedAgentName;
     final sessionView = _buildSessionView(
       composerState: composerState,
       baseWorkspace: baseWorkspace,

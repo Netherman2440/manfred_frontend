@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../features/agents/application/agent_editor_provider.dart';
 import '../../../core/panel_background.dart';
 import '../../../mock/manfred_mock_data.dart';
 import '../../../theme/manfred_theme.dart';
+import '../agent_editor/agent_editor_view.dart';
 import '../columns/additional_column.dart';
 import '../columns/agent_column.dart';
 import '../columns/conversation_column.dart';
@@ -10,7 +13,7 @@ import '../columns/sessions_column.dart';
 import 'desktop_workspace_top_bar.dart';
 import 'workspace_account_bar.dart';
 
-class DesktopWorkspaceLayout extends StatefulWidget {
+class DesktopWorkspaceLayout extends ConsumerStatefulWidget {
   const DesktopWorkspaceLayout({
     super.key,
     required this.workspace,
@@ -47,10 +50,12 @@ class DesktopWorkspaceLayout extends StatefulWidget {
   final VoidCallback? onSaveEditUserMessage;
 
   @override
-  State<DesktopWorkspaceLayout> createState() => _DesktopWorkspaceLayoutState();
+  ConsumerState<DesktopWorkspaceLayout> createState() =>
+      _DesktopWorkspaceLayoutState();
 }
 
-class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
+class _DesktopWorkspaceLayoutState
+    extends ConsumerState<DesktopWorkspaceLayout> {
   static const double _agentWidth = 92;
   static const double _minSessionsWidth = 200;
   static const double _collapsedSessionsWidth = 176;
@@ -118,6 +123,7 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
         final leftClusterWidth =
             (widget.showAgentColumn ? _agentWidth : 0) + currentSessionsWidth;
 
+        final workspaceMode = ref.watch(workspaceModeProvider);
         return Column(
           children: <Widget>[
             DesktopWorkspaceTopBar(
@@ -143,7 +149,7 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                         SizedBox(
                           width: _agentWidth,
                           child: _ColumnFrame(
-                            child: AgentColumn(agents: widget.workspace.agents),
+                            child: const AgentColumn(),
                           ),
                         ),
                       AnimatedContainer(
@@ -184,29 +190,34 @@ class _DesktopWorkspaceLayoutState extends State<DesktopWorkspaceLayout> {
                       Expanded(
                         child: _ColumnFrame(
                           isMainPanel: true,
-                          child: ConversationColumn(
-                            sessionView: widget.workspace.sessionView,
-                            showCompactHeader: false,
-                            isLoading: widget.conversationLoading,
-                            errorMessage: widget.conversationErrorMessage,
-                            onRetry: widget.onRetryConversation,
-                            onEditUserMessage: widget.onEditUserMessage,
-                            onEditUserMessageDraftChanged:
-                                widget.onEditUserMessageDraftChanged,
-                            onCancelEditUserMessage:
-                                widget.onCancelEditUserMessage,
-                            onSaveEditUserMessage: widget.onSaveEditUserMessage,
-                            selectedThreadId: _selectedThreadId,
-                            onSelectThread: (threadId) {
-                              setState(() {
-                                _selectedThreadId =
-                                    _selectedThreadId == threadId
-                                    ? null
-                                    : threadId;
-                                _additionalVisible = true;
-                              });
-                            },
-                          ),
+                          child: switch (workspaceMode) {
+                            WorkspaceMode.agentEditor =>
+                              const AgentEditorView(),
+                            WorkspaceMode.conversation => ConversationColumn(
+                                sessionView: widget.workspace.sessionView,
+                                showCompactHeader: false,
+                                isLoading: widget.conversationLoading,
+                                errorMessage: widget.conversationErrorMessage,
+                                onRetry: widget.onRetryConversation,
+                                onEditUserMessage: widget.onEditUserMessage,
+                                onEditUserMessageDraftChanged:
+                                    widget.onEditUserMessageDraftChanged,
+                                onCancelEditUserMessage:
+                                    widget.onCancelEditUserMessage,
+                                onSaveEditUserMessage:
+                                    widget.onSaveEditUserMessage,
+                                selectedThreadId: _selectedThreadId,
+                                onSelectThread: (threadId) {
+                                  setState(() {
+                                    _selectedThreadId =
+                                        _selectedThreadId == threadId
+                                        ? null
+                                        : threadId;
+                                    _additionalVisible = true;
+                                  });
+                                },
+                              ),
+                          },
                         ),
                       ),
                       if (showAdditionalPanel)
