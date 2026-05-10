@@ -144,6 +144,7 @@ class _DesktopWorkspaceLayoutState
               child: Stack(
                 children: <Widget>[
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       if (widget.showAgentColumn)
                         SizedBox(

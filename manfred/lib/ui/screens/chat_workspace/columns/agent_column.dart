@@ -34,30 +34,65 @@ class AgentColumn extends ConsumerWidget {
           ? _CompactAgentColumn(
               agents: agents,
               selectedAgentName: selectedAgentName,
-              onAgentTap: (agent) => _onAgentTap(ref, agent),
+              onAgentTap: (agent) => _onAgentTap(context, ref, agent),
               onAddAgent: () => _onAddAgent(ref),
             )
           : _DesktopAgentColumn(
               agents: agents,
               selectedAgentName: selectedAgentName,
-              onAgentTap: (agent) => _onAgentTap(ref, agent),
+              onAgentTap: (agent) => _onAgentTap(context, ref, agent),
               onAddAgent: () => _onAddAgent(ref),
             ),
     );
   }
 
-  Future<void> _onAgentTap(WidgetRef ref, AgentSummary agent) async {
+  Future<void> _onAgentTap(
+    BuildContext context,
+    WidgetRef ref,
+    AgentSummary agent,
+  ) async {
+    final workspaceMode = ref.read(workspaceModeProvider);
+    if (workspaceMode == WorkspaceMode.agentEditor) {
+      final isDirty = ref.read(agentEditorIsDirtyProvider);
+      if (isDirty) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: ManfredColors.panelAltBackground,
+            title: const Text('Discard changes?'),
+            content: const Text('You have unsaved changes. Discard them?'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Keep editing'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Discard'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
+      if (!context.mounted) return;
+      ref.read(workspaceModeProvider.notifier).state =
+          WorkspaceMode.conversation;
+    }
+
     ref.read(selectedAgentNameProvider.notifier).state = agent.name;
+    // Reset session immediately so the main panel shows the new agent's context
+    ref.read(selectedSessionProvider.notifier).startDraft();
+    ref.read(composerControllerProvider.notifier).resetDraft();
 
     try {
       final sessions =
           await ref.read(agentsRepositoryProvider).getAgentSessions(agent.name);
       if (sessions.isNotEmpty) {
         ref.read(selectedSessionProvider.notifier).select(sessions.first.id);
-        ref.read(composerControllerProvider.notifier).resetDraft();
       }
     } catch (_) {
-      // No sessions or network error — user can start a new conversation
+      // No sessions or network error — composer stays in draft state
     }
   }
 

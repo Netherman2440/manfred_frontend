@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -61,10 +62,20 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
   late TextEditingController _systemPromptController;
+  late FocusNode _nameFocusNode;
 
   bool _loading = true;
   bool _saving = false;
+  bool _nameEditingActive = false;
   String? _nameError;
+
+  // Initial values for dirty comparison (edit mode)
+  String _initialName = '';
+  String _initialDescription = '';
+  String _initialSystemPrompt = '';
+  String? _initialModel;
+  Set<String> _initialTools = {};
+  Color? _initialColor;
 
   @override
   void initState() {
@@ -73,7 +84,23 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
     _nameController = TextEditingController();
     _descriptionController = TextEditingController();
     _systemPromptController = TextEditingController();
+    _nameFocusNode = FocusNode();
+    _nameFocusNode.addListener(_onNameFocusChanged);
+    _nameController.addListener(_updateDirtyProvider);
+    _descriptionController.addListener(_updateDirtyProvider);
+    _systemPromptController.addListener(_updateDirtyProvider);
+
+    final target = ref.read(agentEditorTargetProvider);
+    // New agents start with the name field open; existing agents show styled text.
+    _nameEditingActive = target == null || target.isCreate;
+
     _loadInitialData();
+  }
+
+  void _onNameFocusChanged() {
+    if (!_nameFocusNode.hasFocus && _nameEditingActive) {
+      setState(() => _nameEditingActive = false);
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -89,6 +116,14 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
           .getAgent(target.agentName!);
       if (!mounted) return;
       setState(() {
+        // Store initial values before setting controllers so listeners see correct baseline
+        _initialName = detail.name;
+        _initialDescription = detail.description ?? '';
+        _initialSystemPrompt = detail.systemPrompt;
+        _initialModel = detail.model;
+        _initialTools = detail.tools.toSet();
+        _initialColor = detail.color;
+
         _formState = _AgentEditorState(
           name: detail.name,
           color: detail.color,
@@ -110,9 +145,15 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
 
   @override
   void dispose() {
+    _nameFocusNode.removeListener(_onNameFocusChanged);
+    _nameFocusNode.dispose();
+    _nameController.removeListener(_updateDirtyProvider);
     _nameController.dispose();
+    _descriptionController.removeListener(_updateDirtyProvider);
     _descriptionController.dispose();
+    _systemPromptController.removeListener(_updateDirtyProvider);
     _systemPromptController.dispose();
+    ref.read(agentEditorIsDirtyProvider.notifier).state = false;
     super.dispose();
   }
 
@@ -124,7 +165,18 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
           _systemPromptController.text.isNotEmpty ||
           _formState.selectedTools.isNotEmpty;
     }
-    return true; // Always warn when editing existing agent
+    return _nameController.text != _initialName ||
+        _descriptionController.text != _initialDescription ||
+        _systemPromptController.text != _initialSystemPrompt ||
+        _formState.model != _initialModel ||
+        _formState.color != _initialColor ||
+        !setEquals(_formState.selectedTools, _initialTools);
+  }
+
+  void _updateDirtyProvider() {
+    if (mounted) {
+      ref.read(agentEditorIsDirtyProvider.notifier).state = _isDirty();
+    }
   }
 
   bool _validate() {
@@ -272,33 +324,37 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  // Name row
-                  Text('Name', style: textTheme.labelMedium),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _nameController,
-                    enabled: !isEditMode,
-                    onChanged: (_) {
-                      setState(() {
-                        _formState.name = _nameController.text;
-                        _nameError = null;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'my-agent',
-                      errorText: _nameError,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Color preview + picker
-                  ColorPickerField(
-                    agentName: _nameController.text,
+                  // Name + color row
+                  _NameColorRow(
+                    nameController: _nameController,
+                    nameFocusNode: _nameFocusNode,
+                    nameEditingActive: _nameEditingActive,
+                    nameError: _nameError,
+                    isEditMode: isEditMode,
                     selectedColor: _formState.color,
+                    onEditTap: () => setState(() {
+                      _nameEditingActive = true;
+                      _nameFocusNode.requestFocus();
+                    }),
+                    onNameChanged: (_) => setState(() {
+                      _formState.name = _nameController.text;
+                      _nameError = null;
+                    }),
                     onColorChanged: (c) {
                       setState(() => _formState.color = c);
+                      _updateDirtyProvider();
                     },
                   ),
+
+                  if (_nameError != null) ...<Widget>[
+                    const SizedBox(height: 6),
+                    Text(
+                      _nameError!,
+                      style: textTheme.labelSmall?.copyWith(
+                        color: ManfredColors.accentRed,
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 16),
 
@@ -321,6 +377,7 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
                     selectedModelId: _formState.model,
                     onChanged: (modelId) {
                       setState(() => _formState.model = modelId);
+                      _updateDirtyProvider();
                     },
                   ),
                   const SizedBox(height: 16),
@@ -332,6 +389,7 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
                     selectedTools: _formState.selectedTools,
                     onChanged: (tools) {
                       setState(() => _formState.selectedTools = tools);
+                      _updateDirtyProvider();
                     },
                   ),
                   const SizedBox(height: 16),
@@ -376,6 +434,124 @@ class _AgentEditorViewState extends ConsumerState<AgentEditorView> {
         ],
       ),
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Name + color inline row
+// ---------------------------------------------------------------------------
+
+class _NameColorRow extends StatelessWidget {
+  const _NameColorRow({
+    required this.nameController,
+    required this.nameFocusNode,
+    required this.nameEditingActive,
+    required this.nameError,
+    required this.isEditMode,
+    required this.selectedColor,
+    required this.onEditTap,
+    required this.onNameChanged,
+    required this.onColorChanged,
+  });
+
+  final TextEditingController nameController;
+  final FocusNode nameFocusNode;
+  final bool nameEditingActive;
+  final String? nameError;
+  final bool isEditMode;
+  final Color? selectedColor;
+  final VoidCallback onEditTap;
+  final ValueChanged<String> onNameChanged;
+  final ValueChanged<Color> onColorChanged;
+
+  Color get _displayColor => selectedColor ?? ManfredColors.panelAltBackground;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Expanded(
+          child: nameEditingActive
+              ? TextField(
+                  controller: nameController,
+                  focusNode: nameFocusNode,
+                  enabled: !isEditMode,
+                  onChanged: onNameChanged,
+                  decoration: InputDecoration(
+                    hintText: 'my-agent',
+                    errorText: nameError,
+                  ),
+                )
+              : GestureDetector(
+                  onTap: isEditMode ? null : onEditTap,
+                  child: Row(
+                    children: <Widget>[
+                      // Mirror the color square width so text is centered
+                      const SizedBox(width: 40 + 12),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Flexible(
+                              child: Text(
+                                nameController.text.isEmpty
+                                    ? 'my-agent'
+                                    : nameController.text,
+                                style: textTheme.titleMedium?.copyWith(
+                                  color:
+                                      selectedColor ??
+                                      ManfredColors.textSecondary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            if (!isEditMode) ...<Widget>[
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.edit_outlined,
+                                size: 16,
+                                color: ManfredColors.textSecondary,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+        const SizedBox(width: 12),
+        GestureDetector(
+          onTap: () => _showColorPicker(context),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _displayColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: ManfredColors.borderStrong),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showColorPicker(BuildContext context) async {
+    final picked = await showDialog<Color>(
+      context: context,
+      builder: (ctx) => ColorPaletteDialog(
+        selectedColor: selectedColor,
+        onColorSelected: (c) => Navigator.pop(ctx, c),
+      ),
+    );
+    if (picked != null) {
+      onColorChanged(picked);
+    }
   }
 }
 

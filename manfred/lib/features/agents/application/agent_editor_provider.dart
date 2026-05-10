@@ -17,6 +17,8 @@ final agentEditorTargetProvider = StateProvider<AgentEditorTarget?>(
   (ref) => null,
 );
 
+final agentEditorIsDirtyProvider = StateProvider<bool>((ref) => false);
+
 /// Per-name lookup used by chat items (e.g. AgentMessageItem).
 /// Riverpod caches per key.
 final agentDetailByNameProvider =

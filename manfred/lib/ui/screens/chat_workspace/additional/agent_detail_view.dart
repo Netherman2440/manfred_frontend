@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../features/agents/application/agent_editor_provider.dart';
-import '../../../../features/agents/application/agents_list_provider.dart';
 import '../../../../features/agents/application/selected_agent_provider.dart';
-import '../../../../features/agents/data/agents_repository.dart';
 import '../../../../features/agents/domain/agent_detail.dart';
 import '../../../../features/agents/domain/agent_editor_target.dart';
-import '../../../../features/sessions/domain/session_list_entry.dart';
 import '../../../core/agent_avatar.dart';
 import '../../../theme/manfred_theme.dart';
 
@@ -43,29 +40,20 @@ class _AgentDetailContent extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Header with edit/delete buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: <Widget>[
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Edit agent',
-                iconSize: 18,
-                onPressed: () {
-                  ref.read(agentEditorTargetProvider.notifier).state =
-                      AgentEditorTarget.edit(detail.name);
-                  ref.read(workspaceModeProvider.notifier).state =
-                      WorkspaceMode.agentEditor;
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Delete agent',
-                iconSize: 18,
-                onPressed: () =>
-                    _showDeleteConfirmation(context, detail.name, ref),
-              ),
-            ],
+          // Header with edit button
+          Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit agent',
+              iconSize: 18,
+              onPressed: () {
+                ref.read(agentEditorTargetProvider.notifier).state =
+                    AgentEditorTarget.edit(detail.name);
+                ref.read(workspaceModeProvider.notifier).state =
+                    WorkspaceMode.agentEditor;
+              },
+            ),
           ),
           const SizedBox(height: 8),
 
@@ -141,83 +129,6 @@ class _AgentDetailContent extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _showDeleteConfirmation(
-    BuildContext context,
-    String agentName,
-    WidgetRef ref,
-  ) async {
-    List<SessionListEntry> sessions;
-    try {
-      sessions =
-          await ref.read(agentsRepositoryProvider).getAgentSessions(agentName);
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load agent sessions')),
-        );
-      }
-      return;
-    }
-
-    if (!context.mounted) return;
-
-    final sessionCount = sessions.length;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: ManfredColors.panelAltBackground,
-        title: const Text('Delete agent'),
-        content: RichText(
-          text: TextSpan(
-            style: DefaultTextStyle.of(ctx).style,
-            children: <TextSpan>[
-              TextSpan(
-                text: 'Are you sure you want to delete agent "$agentName"?\n\n',
-              ),
-              TextSpan(
-                text: sessionCount > 0
-                    ? 'This will also delete $sessionCount session(s).'
-                    : 'This agent has no sessions.',
-                style: TextStyle(
-                  color: sessionCount > 0 ? Colors.red : null,
-                  fontWeight: sessionCount > 0 ? FontWeight.bold : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      await ref.read(agentsRepositoryProvider).deleteAgent(agentName);
-      await ref.read(agentsListProvider.notifier).refresh();
-      ref.read(selectedAgentNameProvider.notifier).state = kDefaultAgentName;
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete agent: $e')),
-        );
-      }
-    }
   }
 
   String _avatarLabel(String name) {

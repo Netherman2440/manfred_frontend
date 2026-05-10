@@ -21,6 +21,7 @@ abstract class ChatRepository {
   Stream<ChatStreamEvent> sendMessageStream({
     required String message,
     String? sessionId,
+    String? agentName,
     List<PendingAttachment> attachments = const <PendingAttachment>[],
   });
   Stream<ChatStreamEvent> deliverMessageStream({
@@ -70,14 +71,17 @@ class HttpChatRepository implements ChatRepository {
   Stream<ChatStreamEvent> sendMessageStream({
     required String message,
     String? sessionId,
+    String? agentName,
     List<PendingAttachment> attachments = const <PendingAttachment>[],
   }) async* {
+    final isNewSession = sessionId == null || sessionId.isEmpty;
     if (attachments.isEmpty) {
       yield* _streamRequest(
         '/chat/completions',
         body: _buildSendMessageBody(
           message: message,
           sessionId: sessionId,
+          agentName: isNewSession ? agentName : null,
           stream: true,
         ),
       );
@@ -85,8 +89,11 @@ class HttpChatRepository implements ChatRepository {
     }
 
     final fields = <String, String>{'message': message, 'stream': 'true'};
-    if (sessionId != null && sessionId.isNotEmpty) {
+    if (!isNewSession) {
       fields['session_id'] = sessionId;
+    }
+    if (isNewSession && agentName != null && agentName.isNotEmpty) {
+      fields['agent_name'] = agentName;
     }
 
     yield* _streamMultipartRequest(
@@ -202,6 +209,7 @@ class HttpChatRepository implements ChatRepository {
     required String message,
     required bool stream,
     String? sessionId,
+    String? agentName,
   }) {
     final body = <String, Object?>{
       'input': <Map<String, Object?>>[
@@ -215,6 +223,9 @@ class HttpChatRepository implements ChatRepository {
     };
     if (sessionId != null && sessionId.isNotEmpty) {
       body['session_id'] = sessionId;
+    }
+    if (agentName != null && agentName.isNotEmpty) {
+      body['agent_config'] = <String, Object?>{'agent_name': agentName};
     }
     return body;
   }

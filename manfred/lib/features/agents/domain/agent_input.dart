@@ -31,9 +31,9 @@ class AgentInput {
 
   static String? _formatHexColor(Color? color) {
     if (color == null) return null;
-    final r = color.r.round().toRadixString(16).padLeft(2, '0');
-    final g = color.g.round().toRadixString(16).padLeft(2, '0');
-    final b = color.b.round().toRadixString(16).padLeft(2, '0');
+    final r = (color.r * 255).round().toRadixString(16).padLeft(2, '0');
+    final g = (color.g * 255).round().toRadixString(16).padLeft(2, '0');
+    final b = (color.b * 255).round().toRadixString(16).padLeft(2, '0');
     return '#$r$g$b'.toUpperCase();
   }
 }

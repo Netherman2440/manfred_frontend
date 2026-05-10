@@ -475,6 +475,7 @@ class ComposerController extends Notifier<ComposerState> {
         : repository.sendMessageStream(
             message: message,
             sessionId: sessionId,
+            agentName: rootAgentName,
             attachments: attachments,
           );
     await _consumeStream(
