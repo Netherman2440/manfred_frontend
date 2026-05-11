@@ -207,32 +207,35 @@ class _CompactAgentColumn extends StatelessWidget {
                       button: true,
                       selected: agent.name == selectedAgentName,
                       label: agent.name,
-                      child: GestureDetector(
-                        onTap: () => onAgentTap(agent),
-                        child: HoverTileContainer(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          isActive: agent.name == selectedAgentName,
-                          baseColor: ManfredColors.panelAltBackground,
-                          child: Row(
-                            children: <Widget>[
-                              AgentAvatar(
-                                label: _avatarLabel(agent.name),
-                                accentColor: agent.color,
-                                size: 34,
-                                isActive: agent.name == selectedAgentName,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                agent.name,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelLarge
-                                    ?.copyWith(color: agent.color),
-                              ),
-                            ],
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: InkWell(
+                          onTap: () => onAgentTap(agent),
+                          child: HoverTileContainer(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            isActive: agent.name == selectedAgentName,
+                            baseColor: ManfredColors.panelAltBackground,
+                            child: Row(
+                              children: <Widget>[
+                                AgentAvatar(
+                                  label: _avatarLabel(agent.name),
+                                  accentColor: agent.color,
+                                  size: 34,
+                                  isActive: agent.name == selectedAgentName,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  agent.name,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelLarge
+                                      ?.copyWith(color: agent.color),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -291,9 +294,11 @@ class _AgentRailItemState extends State<_AgentRailItem> {
         button: true,
         selected: widget.isActive,
         label: widget.agent.name,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: SizedBox(
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: widget.onTap,
+            child: SizedBox(
           width: double.infinity,
           child: Stack(
             children: <Widget>[
@@ -341,6 +346,7 @@ class _AgentRailItemState extends State<_AgentRailItem> {
             ],
           ),
         ),
+          ),
         ),
       ),
     );
