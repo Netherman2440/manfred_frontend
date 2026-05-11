@@ -79,7 +79,7 @@ class HttpAgentsRepository implements AgentsRepository {
       return AgentDetailResponseDto.fromJson(payload).data.toDomain();
     } on ApiError catch (e) {
       if (e.statusCode == 409) throw const AgentAlreadyExists();
-      if (e.statusCode == 422) throw AgentValidationError(_parse422(e.message));
+      if (e.statusCode == 422) throw AgentValidationError(_parse422(e));
       rethrow;
     }
   }
@@ -94,7 +94,7 @@ class HttpAgentsRepository implements AgentsRepository {
       return AgentDetailResponseDto.fromJson(payload).data.toDomain();
     } on ApiError catch (e) {
       if (e.statusCode == 404) throw AgentNotFound(name);
-      if (e.statusCode == 422) throw AgentValidationError(_parse422(e.message));
+      if (e.statusCode == 422) throw AgentValidationError(_parse422(e));
       rethrow;
     }
   }
@@ -118,9 +118,31 @@ class HttpAgentsRepository implements AgentsRepository {
     }
   }
 
-  Map<String, String> _parse422(String rawMessage) {
-    // Best-effort: return a generic map with the raw message
-    return <String, String>{'error': rawMessage};
+  Map<String, String> _parse422(ApiError error) {
+    final details = error.details;
+    if (details is Map<String, dynamic>) {
+      // FastAPI shape: {"detail": [{"loc": ["body", "name"], "msg": "..."}]}
+      final detail = details['detail'];
+      if (detail is List) {
+        final fieldErrors = <String, String>{};
+        for (final item in detail) {
+          if (item is! Map) continue;
+          final loc = item['loc'];
+          final msg = item['msg'];
+          if (loc is List && loc.isNotEmpty && msg is String) {
+            fieldErrors[loc.last.toString()] = msg;
+          }
+        }
+        if (fieldErrors.isNotEmpty) return fieldErrors;
+      }
+      // Flat map shape: {"name": "required", "color": "invalid hex"}
+      final fieldErrors = <String, String>{};
+      details.forEach((key, value) {
+        if (value is String) fieldErrors[key] = value;
+      });
+      if (fieldErrors.isNotEmpty) return fieldErrors;
+    }
+    return <String, String>{'error': error.message};
   }
 }
 

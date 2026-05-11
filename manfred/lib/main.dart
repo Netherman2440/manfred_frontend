@@ -33,29 +33,32 @@ class AppInitGuard extends ConsumerWidget {
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       ),
-      error: (error, _) => Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: 16),
-              Text('Nie można połączyć się z serwerem.'),
-              const SizedBox(height: 8),
-              Text(
-                error.toString(),
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(userMeProvider),
-                child: const Text('Spróbuj ponownie'),
-              ),
-            ],
+      error: (error, stackTrace) {
+        debugPrint('AppInitGuard error: $error\n$stackTrace');
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48),
+                const SizedBox(height: 16),
+                Text('Nie można połączyć się z serwerem.'),
+                const SizedBox(height: 8),
+                Text(
+                  'Spróbuj ponownie za chwilę.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(userMeProvider),
+                  child: const Text('Spróbuj ponownie'),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
       data: (_) => const ChatWorkspacePage(),
     );
   }

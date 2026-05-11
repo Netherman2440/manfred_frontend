@@ -65,35 +65,44 @@ class _ModelPickerField extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final selected = models.where((m) => m.id == selectedModelId).firstOrNull;
 
-    return GestureDetector(
-      onTap: () => _openPicker(context),
-      child: Container(
-        height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: ManfredColors.panelAltBackground,
+    return Semantics(
+      button: true,
+      label: 'Select model',
+      value: selected?.displayName,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openPicker(context),
           borderRadius: BorderRadius.circular(ManfredShapes.inputRadius),
-          border: Border.all(color: ManfredColors.borderSubtle),
-        ),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                selected?.displayName ?? 'Select model',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: selected == null
-                      ? ManfredColors.textMuted
-                      : ManfredColors.textPrimary,
+          child: Container(
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: ManfredColors.panelAltBackground,
+              borderRadius: BorderRadius.circular(ManfredShapes.inputRadius),
+              border: Border.all(color: ManfredColors.borderSubtle),
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    selected?.displayName ?? 'Select model',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: selected == null
+                          ? ManfredColors.textMuted
+                          : ManfredColors.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
+                const Icon(
+                  Icons.expand_more_rounded,
+                  size: 20,
+                  color: ManfredColors.textSecondary,
+                ),
+              ],
             ),
-            const Icon(
-              Icons.expand_more_rounded,
-              size: 20,
-              color: ManfredColors.textSecondary,
-            ),
-          ],
+          ),
         ),
       ),
     );

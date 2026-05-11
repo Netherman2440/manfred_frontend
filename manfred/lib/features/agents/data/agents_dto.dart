@@ -72,16 +72,24 @@ class AgentDetailDto {
 
   factory AgentDetailDto.fromJson(Map<String, dynamic> json) {
     final rawTools = json['tools'];
-    final tools = rawTools is List
-        ? rawTools.map((t) => t.toString()).toList(growable: false)
-        : const <String>[];
+    if (rawTools is! List) {
+      throw FormatException(
+        'Expected "tools" to be a List, got ${rawTools.runtimeType}',
+      );
+    }
+    final rawSystemPrompt = json['system_prompt'];
+    if (rawSystemPrompt is! String) {
+      throw FormatException(
+        'Expected "system_prompt" to be a String, got ${rawSystemPrompt.runtimeType}',
+      );
+    }
     return AgentDetailDto(
       name: json['name'] as String,
       color: json['color'] as String?,
       description: json['description'] as String?,
       model: json['model'] as String?,
-      systemPrompt: (json['system_prompt'] as String?) ?? '',
-      tools: tools,
+      systemPrompt: rawSystemPrompt,
+      tools: rawTools.map((t) => t.toString()).toList(growable: false),
     );
   }
 
@@ -112,7 +120,12 @@ class AgentsListResponseDto {
   const AgentsListResponseDto({required this.data});
 
   factory AgentsListResponseDto.fromJson(Map<String, dynamic> json) {
-    final rawData = json['data'] as List<dynamic>;
+    final rawData = json['data'];
+    if (rawData is! List) {
+      throw FormatException(
+        'Expected "data" to be a List, got ${rawData.runtimeType}',
+      );
+    }
     return AgentsListResponseDto(
       data: rawData
           .map((e) => AgentSummaryDto.fromJson(e as Map<String, dynamic>))

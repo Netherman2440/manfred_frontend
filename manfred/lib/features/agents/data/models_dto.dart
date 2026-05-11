@@ -41,7 +41,12 @@ class ModelsListResponseDto {
   const ModelsListResponseDto({required this.data});
 
   factory ModelsListResponseDto.fromJson(Map<String, dynamic> json) {
-    final rawData = json['data'] as List<dynamic>;
+    final rawData = json['data'];
+    if (rawData is! List) {
+      throw FormatException(
+        'Expected "data" to be a List, got ${rawData.runtimeType}',
+      );
+    }
     return ModelsListResponseDto(
       data: rawData
           .map((e) => ModelSummaryDto.fromJson(e as Map<String, dynamic>))

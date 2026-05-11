@@ -35,15 +35,46 @@ class AgentColumn extends ConsumerWidget {
               agents: agents,
               selectedAgentName: selectedAgentName,
               onAgentTap: (agent) => _onAgentTap(context, ref, agent),
-              onAddAgent: () => _onAddAgent(ref),
+              onAddAgent: () => _onAddAgent(context, ref),
             )
           : _DesktopAgentColumn(
               agents: agents,
               selectedAgentName: selectedAgentName,
               onAgentTap: (agent) => _onAgentTap(context, ref, agent),
-              onAddAgent: () => _onAddAgent(ref),
+              onAddAgent: () => _onAddAgent(context, ref),
             ),
     );
+  }
+
+  /// Returns `true` when the workspace is free to navigate away from the
+  /// current editor (no dirty state, or user accepted to discard).
+  Future<bool> _confirmDiscardIfDirty(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final workspaceMode = ref.read(workspaceModeProvider);
+    if (workspaceMode != WorkspaceMode.agentEditor) return true;
+    if (!ref.read(agentEditorIsDirtyProvider)) return true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ManfredColors.panelAltBackground,
+        title: const Text('Discard changes?'),
+        content: const Text('You have unsaved changes. Discard them?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep editing'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   Future<void> _onAgentTap(
@@ -51,31 +82,9 @@ class AgentColumn extends ConsumerWidget {
     WidgetRef ref,
     AgentSummary agent,
   ) async {
-    final workspaceMode = ref.read(workspaceModeProvider);
-    if (workspaceMode == WorkspaceMode.agentEditor) {
-      final isDirty = ref.read(agentEditorIsDirtyProvider);
-      if (isDirty) {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: ManfredColors.panelAltBackground,
-            title: const Text('Discard changes?'),
-            content: const Text('You have unsaved changes. Discard them?'),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Keep editing'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Discard'),
-              ),
-            ],
-          ),
-        );
-        if (confirmed != true) return;
-      }
-      if (!context.mounted) return;
+    if (!await _confirmDiscardIfDirty(context, ref)) return;
+    if (!context.mounted) return;
+    if (ref.read(workspaceModeProvider) == WorkspaceMode.agentEditor) {
       ref.read(workspaceModeProvider.notifier).state =
           WorkspaceMode.conversation;
     }
@@ -86,8 +95,13 @@ class AgentColumn extends ConsumerWidget {
     ref.read(composerControllerProvider.notifier).resetDraft();
 
     try {
-      final sessions =
-          await ref.read(agentsRepositoryProvider).getAgentSessions(agent.name);
+      final requestedAgentName = agent.name;
+      final sessions = await ref
+          .read(agentsRepositoryProvider)
+          .getAgentSessions(requestedAgentName);
+      // Drop stale responses if the user switched agents while we were
+      // waiting for /sessions to return.
+      if (ref.read(selectedAgentNameProvider) != requestedAgentName) return;
       if (sessions.isNotEmpty) {
         ref.read(selectedSessionProvider.notifier).select(sessions.first.id);
       }
@@ -96,7 +110,9 @@ class AgentColumn extends ConsumerWidget {
     }
   }
 
-  void _onAddAgent(WidgetRef ref) {
+  Future<void> _onAddAgent(BuildContext context, WidgetRef ref) async {
+    if (!await _confirmDiscardIfDirty(context, ref)) return;
+    if (!context.mounted) return;
     ref.read(agentEditorTargetProvider.notifier).state =
         const AgentEditorTarget.create();
     ref.read(workspaceModeProvider.notifier).state = WorkspaceMode.agentEditor;
@@ -187,32 +203,37 @@ class _CompactAgentColumn extends StatelessWidget {
                 ...agents.map(
                   (agent) => Padding(
                     padding: const EdgeInsets.only(right: 10),
-                    child: GestureDetector(
-                      onTap: () => onAgentTap(agent),
-                      child: HoverTileContainer(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        isActive: agent.name == selectedAgentName,
-                        baseColor: ManfredColors.panelAltBackground,
-                        child: Row(
-                          children: <Widget>[
-                            AgentAvatar(
-                              label: _avatarLabel(agent.name),
-                              accentColor: agent.color,
-                              size: 34,
-                              isActive: agent.name == selectedAgentName,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              agent.name,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
-                                  ?.copyWith(color: agent.color),
-                            ),
-                          ],
+                    child: Semantics(
+                      button: true,
+                      selected: agent.name == selectedAgentName,
+                      label: agent.name,
+                      child: GestureDetector(
+                        onTap: () => onAgentTap(agent),
+                        child: HoverTileContainer(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          isActive: agent.name == selectedAgentName,
+                          baseColor: ManfredColors.panelAltBackground,
+                          child: Row(
+                            children: <Widget>[
+                              AgentAvatar(
+                                label: _avatarLabel(agent.name),
+                                accentColor: agent.color,
+                                size: 34,
+                                isActive: agent.name == selectedAgentName,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                agent.name,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
+                                    ?.copyWith(color: agent.color),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -266,9 +287,13 @@ class _AgentRailItemState extends State<_AgentRailItem> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: SizedBox(
+      child: Semantics(
+        button: true,
+        selected: widget.isActive,
+        label: widget.agent.name,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: SizedBox(
           width: double.infinity,
           child: Stack(
             children: <Widget>[
@@ -315,6 +340,7 @@ class _AgentRailItemState extends State<_AgentRailItem> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

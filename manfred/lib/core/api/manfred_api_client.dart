@@ -59,6 +59,7 @@ class ManfredApiClient {
           statusCode: response.statusCode,
         ),
         statusCode: response.statusCode,
+        details: decodedBody,
       );
     }
   }
@@ -240,6 +241,7 @@ class ManfredApiClient {
           statusCode: response.statusCode,
         ),
         statusCode: response.statusCode,
+        details: decodedBody,
       );
     }
 
@@ -265,6 +267,7 @@ class ManfredApiClient {
           statusCode: response.statusCode,
         ),
         statusCode: response.statusCode,
+        details: decodedBody,
       );
     }
 

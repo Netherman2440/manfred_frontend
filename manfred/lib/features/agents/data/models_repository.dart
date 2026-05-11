@@ -21,9 +21,14 @@ class HttpModelsRepository implements ModelsRepository {
     final all = ModelsListResponseDto.fromJson(payload)
         .data
         .map((dto) => dto.toDomain());
-    // Deduplicate by id to prevent DropdownButtonFormField assertion errors.
-    final seen = <String>{};
-    return all.where((m) => seen.add(m.id)).toList(growable: false);
+    // The backend may return duplicate ids when the same model is exposed
+    // by multiple providers; keep the first occurrence so consumers like
+    // _ModelPickerDialog never see duplicate keys.
+    final uniqueById = <String, ModelSummary>{};
+    for (final model in all) {
+      uniqueById.putIfAbsent(model.id, () => model);
+    }
+    return uniqueById.values.toList(growable: false);
   }
 }
 
