@@ -356,6 +356,7 @@ class _FakeChatRepository implements ChatRepository {
   Stream<ChatStreamEvent> sendMessageStream({
     required String message,
     String? sessionId,
+    String? agentName,
     List<PendingAttachment> attachments = const <PendingAttachment>[],
   }) {
     return onSendStream!(

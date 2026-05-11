@@ -1,27 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/agent_avatar.dart';
 import '../../../../core/hover_tile_container.dart';
 import '../../../../mock/manfred_mock_data.dart';
 import '../../../../theme/manfred_theme.dart';
+import '../../../../../features/agents/application/agent_editor_provider.dart';
 import 'conversation_entry_header.dart';
 
-class ToolCallItem extends StatefulWidget {
+class ToolCallItem extends ConsumerStatefulWidget {
   const ToolCallItem({super.key, required this.entry});
 
   final ToolCallConversationEntryMock entry;
 
   @override
-  State<ToolCallItem> createState() => _ToolCallItemState();
+  ConsumerState<ToolCallItem> createState() => _ToolCallItemState();
 }
 
-class _ToolCallItemState extends State<ToolCallItem> {
+class _ToolCallItemState extends ConsumerState<ToolCallItem> {
   bool _isExpanded = false;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final entry = widget.entry;
+    final agentDetail = ref.watch(agentDetailByNameProvider(entry.author));
+    final agentColor =
+        agentDetail.valueOrNull?.color ?? ManfredColors.accentGreen;
 
     return HoverTileContainer(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -30,7 +35,7 @@ class _ToolCallItemState extends State<ToolCallItem> {
         children: <Widget>[
           AgentAvatar(
             label: _avatarLabel(entry.author),
-            accentColor: ManfredColors.accentGreen,
+            accentColor: agentColor,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -41,7 +46,7 @@ class _ToolCallItemState extends State<ToolCallItem> {
                   author: entry.author,
                   dateLabel: entry.dateLabel,
                   timeLabel: entry.timeLabel,
-                  authorColor: ManfredColors.accentGreen,
+                  authorColor: agentColor,
                 ),
                 const SizedBox(height: 10),
                 Container(

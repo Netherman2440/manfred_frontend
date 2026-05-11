@@ -37,6 +37,33 @@ class ManfredApiClient {
     return sendJson('PATCH', path, body: body);
   }
 
+  Future<Map<String, dynamic>> putJson(
+    String path, {
+    required Map<String, Object?> body,
+  }) async {
+    return sendJson('PUT', path, body: body);
+  }
+
+  Future<void> deleteRequest(String path) async {
+    final response = await _client.delete(
+      _buildUri(path),
+      headers: const <String, String>{'Accept': 'application/json'},
+    );
+    if (response.statusCode >= 400) {
+      final responseBody = response.body.trim();
+      final decodedBody = _tryDecodeJson(responseBody);
+      throw ApiError(
+        message: _extractErrorMessage(
+          decodedBody: decodedBody,
+          responseBody: responseBody,
+          statusCode: response.statusCode,
+        ),
+        statusCode: response.statusCode,
+        details: decodedBody,
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> sendJson(
     String method,
     String path, {
@@ -214,6 +241,7 @@ class ManfredApiClient {
           statusCode: response.statusCode,
         ),
         statusCode: response.statusCode,
+        details: decodedBody,
       );
     }
 
@@ -239,6 +267,7 @@ class ManfredApiClient {
           statusCode: response.statusCode,
         ),
         statusCode: response.statusCode,
+        details: decodedBody,
       );
     }
 

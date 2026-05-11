@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../features/agents/application/agent_editor_provider.dart';
+import '../../../features/agents/application/selected_agent_provider.dart';
 import '../../../features/chat/application/composer_controller.dart';
 import '../../../features/chat/domain/composer_state.dart';
 import '../../../features/sessions/application/session_overlay_providers.dart';
@@ -25,29 +27,33 @@ class ChatWorkspacePage extends ConsumerWidget {
     final sessionsAsync = ref.watch(sessionsListViewProvider);
     final detailsAsync = ref.watch(activeSessionDetailsViewProvider);
     final composerState = ref.watch(composerControllerProvider);
-    final sessions = sessionsAsync.valueOrNull ?? const <SessionListEntry>[];
+    final allSessions = sessionsAsync.valueOrNull ?? const <SessionListEntry>[];
+    final selectedAgentName = ref.watch(selectedAgentNameProvider);
+    final agentSessions = allSessions
+        .where((s) => s.rootAgentName == selectedAgentName)
+        .toList(growable: false);
 
-    _maybeSelectFirstSession(ref, selection, sessions);
+    _maybeSelectFirstSession(ref, selection, agentSessions);
 
     final selectedSession = selection.sessionId == null
         ? null
-        : _findSelectedSession(sessions, selection.sessionId);
+        : _findSelectedSession(allSessions, selection.sessionId);
     final rootAgentName =
         detailsAsync.valueOrNull?.rootAgent.name ??
         selectedSession?.rootAgentName ??
-        baseWorkspace.sessionView.rootAgent;
+        selectedAgentName;
     final sessionView = _buildSessionView(
       composerState: composerState,
       baseWorkspace: baseWorkspace,
       selection: selection,
-      sessions: sessions,
+      sessions: allSessions,
       selectedSession: selectedSession,
       detailsAsync: detailsAsync,
       rootAgentName: rootAgentName,
     );
     final workspace = baseWorkspace.copyWith(
       sessions: buildSessionMocks(
-        sessions,
+        agentSessions,
         activeSessionId: selection.sessionId,
         isDraft: selection.isDraft,
       ),
@@ -79,7 +85,8 @@ class ChatWorkspacePage extends ConsumerWidget {
                       selection.sessionId != null && detailsAsync.isLoading,
                   conversationErrorMessage: _asyncErrorMessage(detailsAsync),
                   onCreateSession: () => _startDraft(ref),
-                  onSelectSession: (session) => _selectSession(ref, session),
+                  onSelectSession: (session) =>
+                      _selectSession(context, ref, session),
                   onRetrySessions: () => _retrySessions(ref),
                   onRetryConversation: () => _retryConversation(ref, selection),
                   onEditUserMessage: (messageId) {
@@ -115,7 +122,8 @@ class ChatWorkspacePage extends ConsumerWidget {
                     selection.sessionId != null && detailsAsync.isLoading,
                 conversationErrorMessage: _asyncErrorMessage(detailsAsync),
                 onCreateSession: () => _startDraft(ref),
-                onSelectSession: (session) => _selectSession(ref, session),
+                onSelectSession: (session) =>
+                    _selectSession(context, ref, session),
                 onRetrySessions: () => _retrySessions(ref),
                 onRetryConversation: () => _retryConversation(ref, selection),
                 onEditUserMessage: (messageId) {
@@ -328,7 +336,39 @@ class ChatWorkspacePage extends ConsumerWidget {
     ref.read(composerControllerProvider.notifier).resetDraft();
   }
 
-  void _selectSession(WidgetRef ref, SessionMock session) {
+  Future<void> _selectSession(
+    BuildContext context,
+    WidgetRef ref,
+    SessionMock session,
+  ) async {
+    final workspaceMode = ref.read(workspaceModeProvider);
+    if (workspaceMode == WorkspaceMode.agentEditor) {
+      final isDirty = ref.read(agentEditorIsDirtyProvider);
+      if (isDirty) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: ManfredColors.panelAltBackground,
+            title: const Text('Discard changes?'),
+            content: const Text('You have unsaved changes. Discard them?'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Keep editing'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Discard'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
+      if (!context.mounted) return;
+      ref.read(workspaceModeProvider.notifier).state =
+          WorkspaceMode.conversation;
+    }
     ref.read(selectedSessionProvider.notifier).select(session.id);
     ref.read(composerControllerProvider.notifier).resetDraft();
   }

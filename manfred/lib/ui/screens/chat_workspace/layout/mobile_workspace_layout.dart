@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../features/agents/application/agent_editor_provider.dart';
 import '../../../core/panel_background.dart';
 import '../../../mock/manfred_mock_data.dart';
 import '../../../theme/manfred_theme.dart';
+import '../agent_editor/agent_editor_view.dart';
 import '../columns/agent_column.dart';
 import '../columns/conversation_column.dart';
 import '../columns/sessions_column.dart';
 
-class MobileWorkspaceLayout extends StatelessWidget {
+class MobileWorkspaceLayout extends ConsumerWidget {
   const MobileWorkspaceLayout({
     super.key,
     required this.workspace,
@@ -40,13 +43,15 @@ class MobileWorkspaceLayout extends StatelessWidget {
   final VoidCallback? onSaveEditUserMessage;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final workspaceMode = ref.watch(workspaceModeProvider);
+
     return Column(
       children: <Widget>[
         Container(
           margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: PanelBackground(
-            child: AgentColumn(agents: workspace.agents, compact: true),
+          child: const PanelBackground(
+            child: AgentColumn(compact: true),
           ),
         ),
         Container(
@@ -69,17 +74,20 @@ class MobileWorkspaceLayout extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: PanelBackground(
-              child: ConversationColumn(
-                sessionView: workspace.sessionView,
-                showCompactHeader: true,
-                isLoading: conversationLoading,
-                errorMessage: conversationErrorMessage,
-                onRetry: onRetryConversation,
-                onEditUserMessage: onEditUserMessage,
-                onEditUserMessageDraftChanged: onEditUserMessageDraftChanged,
-                onCancelEditUserMessage: onCancelEditUserMessage,
-                onSaveEditUserMessage: onSaveEditUserMessage,
-              ),
+              child: switch (workspaceMode) {
+                WorkspaceMode.agentEditor => const AgentEditorView(),
+                WorkspaceMode.conversation => ConversationColumn(
+                    sessionView: workspace.sessionView,
+                    showCompactHeader: true,
+                    isLoading: conversationLoading,
+                    errorMessage: conversationErrorMessage,
+                    onRetry: onRetryConversation,
+                    onEditUserMessage: onEditUserMessage,
+                    onEditUserMessageDraftChanged: onEditUserMessageDraftChanged,
+                    onCancelEditUserMessage: onCancelEditUserMessage,
+                    onSaveEditUserMessage: onSaveEditUserMessage,
+                  ),
+              },
             ),
           ),
         ),

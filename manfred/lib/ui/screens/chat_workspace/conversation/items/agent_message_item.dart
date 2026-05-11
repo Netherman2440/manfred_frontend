@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/agent_avatar.dart';
 import '../../../../core/hover_tile_container.dart';
+import '../../../../../features/agents/application/agent_editor_provider.dart';
 import '../../../../mock/manfred_mock_data.dart';
 import '../../../../theme/manfred_theme.dart';
 import 'conversation_entry_header.dart';
 
-class AgentMessageItem extends StatelessWidget {
+class AgentMessageItem extends ConsumerWidget {
   const AgentMessageItem({super.key, required this.entry});
 
   final AgentConversationEntryMock entry;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
+    final agentDetail = ref.watch(agentDetailByNameProvider(entry.author));
+    final agentColor =
+        agentDetail.valueOrNull?.color ?? ManfredColors.accentGreen;
 
     return HoverTileContainer(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -22,7 +27,7 @@ class AgentMessageItem extends StatelessWidget {
         children: <Widget>[
           AgentAvatar(
             label: _avatarLabel(entry.author),
-            accentColor: ManfredColors.accentGreen,
+            accentColor: agentColor,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -33,7 +38,7 @@ class AgentMessageItem extends StatelessWidget {
                   author: entry.author,
                   dateLabel: entry.dateLabel,
                   timeLabel: entry.timeLabel,
-                  authorColor: ManfredColors.accentGreen,
+                  authorColor: agentColor,
                 ),
                 const SizedBox(height: 8),
                 SelectableText(entry.body, style: textTheme.bodyMedium),
