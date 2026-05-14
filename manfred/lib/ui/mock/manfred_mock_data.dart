@@ -54,12 +54,14 @@ class SessionMock {
     required this.id,
     required this.prefix,
     required this.title,
+    this.subtitle,
     this.isActive = false,
   });
 
   final String id;
   final String prefix;
   final String title;
+  final String? subtitle;
   final bool isActive;
 }
 

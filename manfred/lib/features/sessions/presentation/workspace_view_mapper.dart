@@ -18,11 +18,22 @@ List<SessionMock> buildSessionMocks(
         (session) => SessionMock(
           id: session.id,
           prefix: '#',
-          title: session.displayTitle,
+          title: session.id,
+          subtitle: _formatSessionDateLabel(session.createdAt),
           isActive: !isDraft && session.id == activeSessionId,
         ),
       )
       .toList(growable: false);
+}
+
+String _formatSessionDateLabel(DateTime value) {
+  final local = value.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final year = local.year.toString();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$day.$month.$year · $hour:$minute';
 }
 
 SessionViewMock buildSessionViewMock(
