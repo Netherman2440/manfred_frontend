@@ -72,8 +72,19 @@ class SessionListItem extends StatelessWidget {
                 ? ManfredColors.textPrimary
                 : ManfredColors.textSecondary,
             fontWeight: session.isActive ? FontWeight.w600 : FontWeight.w500,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
+        subtitle: session.subtitle == null
+            ? null
+            : Text(
+                session.subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.bodySmall?.copyWith(
+                  color: ManfredColors.textMuted,
+                ),
+              ),
         onTap: onTap,
       ),
     );
