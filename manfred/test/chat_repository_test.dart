@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -712,6 +714,67 @@ void main() {
         expect(
           (result as SummarizeTransportError).message,
           contains('mystery'),
+        );
+      },
+    );
+
+    test(
+      'TimeoutException maps to SummarizeTransportError("timeout")',
+      () async {
+        final client = MockClient((http.Request request) async {
+          throw TimeoutException('simulated');
+        });
+
+        final result = await buildRepository(
+          client,
+        ).summarize(sessionId: 'session-1');
+
+        expect(result, isA<SummarizeTransportError>());
+        expect((result as SummarizeTransportError).message, equals('timeout'));
+      },
+    );
+
+    test(
+      'network exception maps to SummarizeTransportError with error details',
+      () async {
+        final client = MockClient((http.Request request) async {
+          throw const SocketException('connection refused');
+        });
+
+        final result = await buildRepository(
+          client,
+        ).summarize(sessionId: 'session-1');
+
+        expect(result, isA<SummarizeTransportError>());
+        expect(
+          (result as SummarizeTransportError).message,
+          contains('SocketException'),
+        );
+        expect(result.message, contains('connection refused'));
+      },
+    );
+
+    test(
+      '200 with non-string status maps to SummarizeTransportError("missing_status")',
+      () async {
+        final client = MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode(<String, Object?>{'status': 42}),
+            200,
+            headers: const <String, String>{
+              'content-type': 'application/json',
+            },
+          );
+        });
+
+        final result = await buildRepository(
+          client,
+        ).summarize(sessionId: 'session-1');
+
+        expect(result, isA<SummarizeTransportError>());
+        expect(
+          (result as SummarizeTransportError).message,
+          equals('missing_status'),
         );
       },
     );
