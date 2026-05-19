@@ -10,6 +10,7 @@ import 'package:manfred/features/chat/data/chat_repository.dart';
 import 'package:manfred/features/chat/domain/chat_stream_event.dart';
 import 'package:manfred/features/chat/domain/pending_attachment.dart';
 import 'package:manfred/features/chat/domain/queued_message.dart';
+import 'package:manfred/features/chat/domain/summarize_result.dart';
 
 void main() {
   test(
@@ -484,6 +485,235 @@ void main() {
     expect(
       multipart.files.where((f) => f.field != 'retain_attachment_ids').single.filename,
       'new.txt',
+    );
+  });
+
+  group('summarize', () {
+    HttpChatRepository buildRepository(MockClient client) {
+      return HttpChatRepository(
+        apiClient: ManfredApiClient(
+          client: client,
+          baseUrl: 'http://127.0.0.1:3000/api/v1',
+        ),
+      );
+    }
+
+    test('posts empty body to the summarize endpoint', () async {
+      late http.Request capturedRequest;
+      final client = MockClient((http.Request request) async {
+        capturedRequest = request;
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            'status': 'success',
+            'observations_preview': 'preview',
+          }),
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      });
+
+      final repository = buildRepository(client);
+
+      await repository.summarize(sessionId: 'session-42');
+
+      expect(
+        capturedRequest.url.path,
+        '/api/v1/chat/sessions/session-42/summarize',
+      );
+      expect(capturedRequest.method, 'POST');
+      expect(
+        jsonDecode(capturedRequest.body) as Map<String, dynamic>,
+        isEmpty,
+      );
+    });
+
+    test('200 success maps to SummarizeSuccess with preview', () async {
+      final client = MockClient((http.Request request) async {
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            'status': 'success',
+            'observations_preview': 'Manfred uważnie obserwuje rozmowę.',
+          }),
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      });
+
+      final result = await buildRepository(
+        client,
+      ).summarize(sessionId: 'session-1');
+
+      expect(result, isA<SummarizeSuccess>());
+      expect(
+        (result as SummarizeSuccess).preview,
+        'Manfred uważnie obserwuje rozmowę.',
+      );
+    });
+
+    test('200 success without preview falls back to empty string', () async {
+      final client = MockClient((http.Request request) async {
+        return http.Response(
+          jsonEncode(<String, Object?>{'status': 'success'}),
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      });
+
+      final result = await buildRepository(
+        client,
+      ).summarize(sessionId: 'session-1');
+
+      expect(result, isA<SummarizeSuccess>());
+      expect((result as SummarizeSuccess).preview, '');
+    });
+
+    test('200 locked maps to SummarizeLocked', () async {
+      final client = MockClient((http.Request request) async {
+        return http.Response(
+          jsonEncode(<String, Object?>{'status': 'locked'}),
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      });
+
+      final result = await buildRepository(
+        client,
+      ).summarize(sessionId: 'session-1');
+
+      expect(result, isA<SummarizeLocked>());
+    });
+
+    test(
+      '200 below_threshold preserves detail in SummarizeBelowThreshold',
+      () async {
+        final client = MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode(<String, Object?>{
+              'status': 'below_threshold',
+              'detail': '120 < 500',
+            }),
+            200,
+            headers: const <String, String>{'content-type': 'application/json'},
+          );
+        });
+
+        final result = await buildRepository(
+          client,
+        ).summarize(sessionId: 'session-1');
+
+        expect(result, isA<SummarizeBelowThreshold>());
+        expect((result as SummarizeBelowThreshold).detail, '120 < 500');
+      },
+    );
+
+    test('200 error preserves detail in SummarizeError', () async {
+      final client = MockClient((http.Request request) async {
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            'status': 'error',
+            'detail': 'observer crashed',
+          }),
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      });
+
+      final result = await buildRepository(
+        client,
+      ).summarize(sessionId: 'session-1');
+
+      expect(result, isA<SummarizeError>());
+      expect((result as SummarizeError).detail, 'observer crashed');
+    });
+
+    test('204 No Content maps to SummarizeNoUnobserved', () async {
+      final client = MockClient((http.Request request) async {
+        return http.Response('', 204);
+      });
+
+      final result = await buildRepository(
+        client,
+      ).summarize(sessionId: 'session-1');
+
+      expect(result, isA<SummarizeNoUnobserved>());
+    });
+
+    test('404 Not Found maps to SummarizeNotFound', () async {
+      final client = MockClient((http.Request request) async {
+        return http.Response(
+          jsonEncode(<String, Object?>{'detail': 'session not found'}),
+          404,
+          headers: const <String, String>{'content-type': 'application/json'},
+        );
+      });
+
+      final result = await buildRepository(
+        client,
+      ).summarize(sessionId: 'missing');
+
+      expect(result, isA<SummarizeNotFound>());
+    });
+
+    test(
+      '503 Service Unavailable maps to SummarizeFeatureDisabled',
+      () async {
+        final client = MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode(<String, Object?>{'detail': 'feature disabled'}),
+            503,
+            headers: const <String, String>{
+              'content-type': 'application/json',
+            },
+          );
+        });
+
+        final result = await buildRepository(
+          client,
+        ).summarize(sessionId: 'session-1');
+
+        expect(result, isA<SummarizeFeatureDisabled>());
+      },
+    );
+
+    test('500 Internal Server Error maps to SummarizeTransportError', () async {
+      final client = MockClient((http.Request request) async {
+        return http.Response('boom', 500);
+      });
+
+      final result = await buildRepository(
+        client,
+      ).summarize(sessionId: 'session-1');
+
+      expect(result, isA<SummarizeTransportError>());
+      expect(
+        (result as SummarizeTransportError).message,
+        contains('500'),
+      );
+    });
+
+    test(
+      '200 with unknown status maps to SummarizeTransportError',
+      () async {
+        final client = MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode(<String, Object?>{'status': 'mystery'}),
+            200,
+            headers: const <String, String>{
+              'content-type': 'application/json',
+            },
+          );
+        });
+
+        final result = await buildRepository(
+          client,
+        ).summarize(sessionId: 'session-1');
+
+        expect(result, isA<SummarizeTransportError>());
+        expect(
+          (result as SummarizeTransportError).message,
+          contains('mystery'),
+        );
+      },
     );
   });
 
