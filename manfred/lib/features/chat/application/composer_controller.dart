@@ -18,6 +18,11 @@ import '../domain/composer_state.dart';
 import '../domain/edit_target.dart';
 import '../domain/pending_attachment.dart';
 import '../domain/queued_message.dart';
+import '../domain/slash_command.dart';
+import '../domain/slash_command_matcher.dart';
+import '../domain/summarize_result.dart';
+import 'feature_disabled_summarize_provider.dart';
+import 'summarize_snackbar_emitter.dart';
 
 class ComposerController extends Notifier<ComposerState> {
   @override
@@ -140,6 +145,11 @@ class ComposerController extends Notifier<ComposerState> {
     }
 
     final trimmedDraft = state.draft.trim();
+    final command = resolveCommand(trimmedDraft);
+    if (command != null && _slashCommandIsActive(command)) {
+      await _runSlashCommand(command, rootAgentName: rootAgentName);
+      return;
+    }
     if (trimmedDraft.isEmpty) {
       return;
     }
@@ -258,6 +268,81 @@ class ComposerController extends Notifier<ComposerState> {
         isStopping: false,
         errorMessage: 'Nie udało się zatrzymać runu.',
       );
+    }
+  }
+
+  /// Returns `true` if [cmd] should be executed as a slash command.
+  ///
+  /// A command is considered inactive (and the draft should fall through to
+  /// the normal send path) when the current session has been sticky-disabled
+  /// for that command — e.g. the backend already returned 503 on `/summarize`.
+  bool _slashCommandIsActive(SlashCommand cmd) {
+    if (cmd.name != 'summarize') {
+      return true;
+    }
+    final sessionId = ref.read(selectedSessionProvider).sessionId;
+    if (sessionId == null || sessionId.isEmpty) {
+      return true;
+    }
+    return !ref.read(featureDisabledSummarizeProvider).contains(sessionId);
+  }
+
+  Future<void> _runSlashCommand(
+    SlashCommand cmd, {
+    String? rootAgentName,
+  }) async {
+    if (cmd.name != 'summarize') {
+      throw UnimplementedError('command ${cmd.name} not supported');
+    }
+
+    final sessionId = ref.read(selectedSessionProvider).sessionId;
+    if (sessionId == null || sessionId.isEmpty) {
+      state = state.copyWith(
+        errorMessage: 'Otwórz sesję, zanim wywołasz /summarize.',
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      runningCommand: 'summarize',
+      draft: '',
+      clearErrorMessage: true,
+      clearAttachments: true,
+      clearEditTarget: true,
+    );
+
+    SummarizeResult result;
+    try {
+      try {
+        result = await ref
+            .read(chatRepositoryProvider)
+            .summarize(sessionId: sessionId);
+      } catch (error) {
+        // Defensive guard: the repo claims to swallow all errors into a
+        // SummarizeTransportError, but if that contract ever breaks we still
+        // want to surface the failure and clear the loading state.
+        debugPrint(
+          '[composer.summarize.error] message=${error.toString()}',
+        );
+        result = SummarizeTransportError(error.toString());
+      }
+
+      if (result is SummarizeFeatureDisabled) {
+        ref
+            .read(featureDisabledSummarizeProvider.notifier)
+            .update((set) => <String>{...set, sessionId});
+      }
+
+      ref
+          .read(summarizeSnackbarEmitterProvider)
+          .show(
+            result,
+            onRetry: result is SummarizeError
+                ? () => _runSlashCommand(cmd, rootAgentName: rootAgentName)
+                : null,
+          );
+    } finally {
+      state = state.copyWith(clearRunningCommand: true);
     }
   }
 
