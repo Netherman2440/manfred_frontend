@@ -147,7 +147,7 @@ class ComposerController extends Notifier<ComposerState> {
     final trimmedDraft = state.draft.trim();
     final command = resolveCommand(trimmedDraft);
     if (command != null && _slashCommandIsActive(command)) {
-      await _runSlashCommand(command, rootAgentName: rootAgentName);
+      await _runSlashCommand(command);
       return;
     }
     if (trimmedDraft.isEmpty) {
@@ -287,10 +287,7 @@ class ComposerController extends Notifier<ComposerState> {
     return !ref.read(featureDisabledSummarizeProvider).contains(sessionId);
   }
 
-  Future<void> _runSlashCommand(
-    SlashCommand cmd, {
-    String? rootAgentName,
-  }) async {
+  Future<void> _runSlashCommand(SlashCommand cmd) async {
     if (cmd.name != 'summarize') {
       throw UnimplementedError('command ${cmd.name} not supported');
     }
@@ -307,8 +304,6 @@ class ComposerController extends Notifier<ComposerState> {
       runningCommand: 'summarize',
       draft: '',
       clearErrorMessage: true,
-      clearAttachments: true,
-      clearEditTarget: true,
     );
 
     SummarizeResult result;
@@ -333,14 +328,19 @@ class ComposerController extends Notifier<ComposerState> {
             .update((set) => <String>{...set, sessionId});
       }
 
-      ref
-          .read(summarizeSnackbarEmitterProvider)
-          .show(
-            result,
-            onRetry: result is SummarizeError
-                ? () => _runSlashCommand(cmd, rootAgentName: rootAgentName)
-                : null,
-          );
+      // Spec T3: 204 no_unobserved → cichy no-op, composer wraca do idle bez
+      // SnackBaru. The emit is suppressed at the controller level rather than
+      // pushed into the emitter so renderers stay UX-agnostic.
+      if (result is! SummarizeNoUnobserved) {
+        ref
+            .read(summarizeSnackbarEmitterProvider)
+            .show(
+              result,
+              onRetry: result is SummarizeError
+                  ? () => _runSlashCommand(cmd)
+                  : null,
+            );
+      }
     } finally {
       state = state.copyWith(clearRunningCommand: true);
     }

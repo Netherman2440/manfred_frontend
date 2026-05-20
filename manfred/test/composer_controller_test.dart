@@ -532,7 +532,7 @@ void main() {
     }
 
     test(
-      'SummarizeNoUnobserved (204) is also emitted to the emitter (renderer decides UX)',
+      '/summarize result variant noUnobserved (204) is silent — no emit, draft and runningCommand cleared',
       () async {
         final harness = setUpHarness(
           onSummarize: ({required sessionId}) async =>
@@ -546,11 +546,11 @@ void main() {
         controller.updateDraft('/summarize');
         await controller.send();
 
-        expect(harness.emitter.recorded, hasLength(1));
-        expect(
-          harness.emitter.recorded.single.result,
-          isA<SummarizeNoUnobserved>(),
-        );
+        expect(harness.emitter.recorded, isEmpty);
+        expect(harness.chatRepository.summarizeCallCount, 1);
+        final composerState = harness.container.read(composerControllerProvider);
+        expect(composerState.runningCommand, isNull);
+        expect(composerState.draft, '');
       },
     );
 
@@ -666,6 +666,8 @@ void main() {
         final composerState = harness.container.read(composerControllerProvider);
         expect(composerState.errorMessage, isNotNull);
         expect(composerState.errorMessage, contains('sesję'));
+        expect(composerState.runningCommand, isNull);
+        expect(harness.emitter.recorded, isEmpty);
       },
     );
   });
