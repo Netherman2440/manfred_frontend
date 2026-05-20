@@ -7,6 +7,7 @@ import 'package:manfred/features/chat/domain/chat_mutation_result.dart';
 import 'package:manfred/features/chat/domain/chat_stream_event.dart';
 import 'package:manfred/features/chat/domain/pending_attachment.dart';
 import 'package:manfred/features/chat/domain/queued_message.dart';
+import 'package:manfred/features/chat/domain/summarize_result.dart';
 import 'package:manfred/features/sessions/application/selected_session_provider.dart';
 import 'package:manfred/features/sessions/application/session_overlay_providers.dart';
 import 'package:manfred/features/sessions/data/sessions_repository.dart';
@@ -414,5 +415,10 @@ class _FakeChatRepository implements ChatRepository {
       retainAttachmentIds: retainAttachmentIds,
       attachments: attachments,
     );
+  }
+
+  @override
+  Future<SummarizeResult> summarize({required String sessionId}) async {
+    throw UnimplementedError();
   }
 }

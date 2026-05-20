@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manfred/features/chat/data/chat_repository.dart';
+import 'package:manfred/features/chat/domain/summarize_result.dart';
 import 'package:manfred/features/chat/domain/chat_mutation_result.dart';
 import 'package:manfred/features/chat/domain/chat_stream_event.dart';
 import 'package:manfred/features/chat/domain/pending_attachment.dart';
@@ -1440,5 +1441,10 @@ class FakeChatRepository implements ChatRepository {
       retainAttachmentIds: retainAttachmentIds,
       attachments: attachments,
     );
+  }
+
+  @override
+  Future<SummarizeResult> summarize({required String sessionId}) async {
+    throw UnimplementedError('summarize should not be used in this test');
   }
 }
