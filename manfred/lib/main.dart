@@ -1,12 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/chat/application/summarize_snackbar_emitter.dart';
 import 'features/user/application/user_me_provider.dart';
 import 'ui/screens/chat_workspace/chat_workspace_page.dart';
+import 'ui/screens/chat_workspace/summarize_snackbar.dart';
 import 'ui/theme/manfred_theme.dart';
 
+/// Top-level [ScaffoldMessengerState] key — shared between [MaterialApp]'s
+/// `scaffoldMessengerKey` and the production [SummarizeSnackbarEmitter] so
+/// the composer controller can deliver SnackBars from outside the widget
+/// tree.
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
 void main() {
-  runApp(const ProviderScope(child: ManfredApp()));
+  runApp(
+    ProviderScope(
+      overrides: <Override>[
+        summarizeSnackbarEmitterProvider.overrideWithValue(
+          ScaffoldMessengerSummarizeEmitter(
+            scaffoldMessengerKey: rootScaffoldMessengerKey,
+          ),
+        ),
+      ],
+      child: const ManfredApp(),
+    ),
+  );
 }
 
 class ManfredApp extends StatelessWidget {
@@ -18,6 +38,7 @@ class ManfredApp extends StatelessWidget {
       title: 'Manfred',
       debugShowCheckedModeBanner: false,
       theme: ManfredTheme.dark(),
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       home: const AppInitGuard(),
     );
   }
