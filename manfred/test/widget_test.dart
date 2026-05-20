@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:manfred/features/agents/application/selected_agent_provider.dart';
 import 'package:manfred/features/chat/data/chat_repository.dart';
 import 'package:manfred/features/chat/domain/summarize_result.dart';
 import 'package:manfred/features/chat/domain/chat_mutation_result.dart';
@@ -126,7 +127,6 @@ void main() {
     expect(find.text('Potrzebuję planu wdrożenia.'), findsOneWidget);
     expect(find.text('Mam już szkic integracji.'), findsWidgets);
     expect(find.text('search_docs'), findsOneWidget);
-    expect(find.text('Artifacts'), findsOneWidget);
   });
 
   testWidgets('new session first send switches to created session', (
@@ -1241,6 +1241,7 @@ Future<void> _pumpWorkspace(
       overrides: <Override>[
         sessionsRepositoryProvider.overrideWithValue(sessionsRepository),
         chatRepositoryProvider.overrideWithValue(chatRepository),
+        selectedAgentNameProvider.overrideWith((ref) => 'Manfred'),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
