@@ -453,8 +453,8 @@ class _SendOrSpinner extends StatelessWidget {
     if (isRunningCommand) {
       // Same geometry as WorkspaceIconButton primary action — no layout jump.
       return Container(
-        width: 38,
-        height: 38,
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
           color: ManfredColors.panelOverlay,
           border: Border.all(color: ManfredColors.accentBlue),
@@ -562,7 +562,14 @@ class _RecollectingStatusRowState extends State<_RecollectingStatusRow>
           const SizedBox(width: 6),
           _AnimatedDots(controller: _dotsController),
           const Spacer(),
-          Text('may take ~20s · do not refresh', style: metaStyle),
+          Flexible(
+            child: Text(
+              'may take ~20s · do not refresh',
+              style: metaStyle,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+            ),
+          ),
         ],
       ),
     );

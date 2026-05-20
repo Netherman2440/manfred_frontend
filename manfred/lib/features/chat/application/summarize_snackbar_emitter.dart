@@ -15,6 +15,6 @@ abstract class SummarizeSnackbarEmitter {
 
 final summarizeSnackbarEmitterProvider = Provider<SummarizeSnackbarEmitter>(
   (ref) => throw UnimplementedError(
-    'Override summarizeSnackbarEmitterProvider at the screen level.',
+    'Override summarizeSnackbarEmitterProvider at the app root ProviderScope.',
   ),
 );

@@ -85,7 +85,7 @@ class SlashCommandPaletteState extends State<SlashCommandPalette> {
     final matchCounterStyle = ManfredFonts.mono(
       const TextStyle(
         fontSize: 10,
-        color: ManfredColors.borderStrong,
+        color: ManfredColors.textMuted,
         letterSpacing: 1.2,
       ),
     );
@@ -96,13 +96,6 @@ class SlashCommandPaletteState extends State<SlashCommandPalette> {
         color: ManfredColors.panelOverlay,
         borderRadius: BorderRadius.circular(ManfredShapes.panelRadius),
         border: Border.all(color: ManfredColors.borderSubtle),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x66000000),
-            blurRadius: 24,
-            offset: Offset(0, 12),
-          ),
-        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

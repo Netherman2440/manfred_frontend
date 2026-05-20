@@ -259,7 +259,7 @@ class _SummarizeSnackBarContent extends StatelessWidget {
                           if (variant.detail != null) ...<Widget>[
                             const SizedBox(height: 8),
                             Text(
-                              'detail: ${variant.detail!}',
+                              variant.detail!,
                               style: detailStyle,
                             ),
                           ],
