@@ -670,6 +670,67 @@ void main() {
         expect(harness.emitter.recorded, isEmpty);
       },
     );
+
+    test(
+      'retry callback short-circuits when the selected session has changed',
+      () async {
+        final harness = setUpHarness(
+          onSummarize: ({required sessionId}) async =>
+              const SummarizeError('boom'),
+        );
+        addTearDown(harness.container.dispose);
+
+        final controller = harness.container.read(
+          composerControllerProvider.notifier,
+        );
+        controller.updateDraft('/summarize');
+        await controller.send();
+
+        expect(harness.chatRepository.summarizeCallCount, 1);
+        final emitted = harness.emitter.recorded.single;
+        expect(emitted.onRetry, isNotNull);
+
+        // User switches to a different session before tapping Retry on the
+        // (now stale) SnackBar.
+        harness.container
+            .read(selectedSessionProvider.notifier)
+            .select('session-2');
+
+        emitted.onRetry!();
+        await Future<void>.delayed(Duration.zero);
+
+        // The retry must NOT have fired because the session changed under it.
+        expect(harness.chatRepository.summarizeCallCount, 1);
+      },
+    );
+
+    test(
+      'defensive catch synthesizes SummarizeTransportError when repo throws',
+      () async {
+        final harness = setUpHarness(
+          onSummarize: ({required sessionId}) async =>
+              throw StateError('boom'),
+        );
+        addTearDown(harness.container.dispose);
+
+        final controller = harness.container.read(
+          composerControllerProvider.notifier,
+        );
+        controller.updateDraft('/summarize');
+        await controller.send();
+
+        expect(harness.emitter.recorded, hasLength(1));
+        expect(
+          harness.emitter.recorded.single.result,
+          isA<SummarizeTransportError>(),
+        );
+        expect(harness.chatRepository.sendStreamCallCount, 0);
+
+        final composerState = harness.container.read(composerControllerProvider);
+        expect(composerState.runningCommand, isNull);
+        expect(composerState.draft, '');
+      },
+    );
   });
 }
 

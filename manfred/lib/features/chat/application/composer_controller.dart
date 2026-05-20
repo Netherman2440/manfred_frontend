@@ -146,7 +146,7 @@ class ComposerController extends Notifier<ComposerState> {
 
     final trimmedDraft = state.draft.trim();
     final command = resolveCommand(trimmedDraft);
-    if (command != null && _slashCommandIsActive(command)) {
+    if (command != null && _isSlashCommandEnabledForCurrentSession(command)) {
       await _runSlashCommand(command);
       return;
     }
@@ -276,10 +276,12 @@ class ComposerController extends Notifier<ComposerState> {
   /// A command is considered inactive (and the draft should fall through to
   /// the normal send path) when the current session has been sticky-disabled
   /// for that command — e.g. the backend already returned 503 on `/summarize`.
-  bool _slashCommandIsActive(SlashCommand cmd) {
-    if (cmd.name != 'summarize') {
-      return true;
-    }
+  bool _isSlashCommandEnabledForCurrentSession(SlashCommand cmd) {
+    assert(
+      cmd.name == 'summarize',
+      'unknown slash command "${cmd.name}" — registry must only contain '
+      'commands the controller knows how to dispatch',
+    );
     final sessionId = ref.read(selectedSessionProvider).sessionId;
     if (sessionId == null || sessionId.isEmpty) {
       return true;
@@ -288,8 +290,22 @@ class ComposerController extends Notifier<ComposerState> {
   }
 
   Future<void> _runSlashCommand(SlashCommand cmd) async {
-    if (cmd.name != 'summarize') {
-      throw UnimplementedError('command ${cmd.name} not supported');
+    assert(
+      cmd.name == 'summarize',
+      'unknown slash command "${cmd.name}" — registry must only contain '
+      'commands the controller knows how to dispatch',
+    );
+
+    if (state.isStreaming) {
+      state = state.copyWith(
+        errorMessage:
+            'Zatrzymaj aktywny stream przed wywołaniem /summarize.',
+      );
+      return;
+    }
+
+    if (state.runningCommand != null) {
+      return;
     }
 
     final sessionId = ref.read(selectedSessionProvider).sessionId;
@@ -299,6 +315,7 @@ class ComposerController extends Notifier<ComposerState> {
       );
       return;
     }
+    final originalSessionId = sessionId;
 
     state = state.copyWith(
       runningCommand: 'summarize',
@@ -337,13 +354,25 @@ class ComposerController extends Notifier<ComposerState> {
             .show(
               result,
               onRetry: result is SummarizeError
-                  ? () => _runSlashCommand(cmd)
+                  ? () => _retrySlashCommand(cmd, originalSessionId)
                   : null,
             );
       }
     } finally {
       state = state.copyWith(clearRunningCommand: true);
     }
+  }
+
+  Future<void> _retrySlashCommand(
+    SlashCommand cmd,
+    String originalSessionId,
+  ) async {
+    final currentSessionId =
+        ref.read(selectedSessionProvider).sessionId ?? '';
+    if (currentSessionId != originalSessionId) {
+      return;
+    }
+    await _runSlashCommand(cmd);
   }
 
   Future<void> _queuePendingMessage({
