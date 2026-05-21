@@ -59,7 +59,10 @@ class _HoverTileContainerState extends State<HoverTileContainer> {
               color: isHighlighted ? widget.highlightColor : widget.baseColor,
               borderRadius: BorderRadius.circular(widget.borderRadius),
             ),
-            child: widget.child,
+            child: Material(
+              type: MaterialType.transparency,
+              child: widget.child,
+            ),
           ),
         ),
       ),
