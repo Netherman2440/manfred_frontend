@@ -47,22 +47,15 @@ class _HoverTileContainerState extends State<HoverTileContainer> {
         widget.onHoverChanged?.call(false);
       },
       child: Material(
-        color: Colors.transparent,
+        color: isHighlighted ? widget.highlightColor : widget.baseColor,
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        animationDuration: const Duration(milliseconds: 120),
         child: InkWell(
           borderRadius: BorderRadius.circular(widget.borderRadius),
           onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
+          child: Padding(
             padding: widget.padding,
-            decoration: BoxDecoration(
-              color: isHighlighted ? widget.highlightColor : widget.baseColor,
-              borderRadius: BorderRadius.circular(widget.borderRadius),
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: widget.child,
-            ),
+            child: widget.child,
           ),
         ),
       ),
