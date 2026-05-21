@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Manfred · /summarize composer — design mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&display=swap" rel="stylesheet" />
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* Exact Manfred palette */
+    --app-bg:            #0E0B09;
+    --sessions-bg:       #121214;
+    --panel-raised:      #17181B;
+    --panel-alt:         #1B1D21;
+    --panel-overlay:     #24262B;
+    --message-hover:     #222327;
+    --border-subtle:     #2B2D33;
+    --border-strong:     #383B43;
+    --text-primary:      #F2F5F8;
+    --text-secondary:    #ABB8C8;
+    --text-muted:        #728094;
+    --accent-blue:       #5EA1FF;
+    --accent-blue-soft:  #2B3F57;
+    --accent-green:      #76D39B;
+    --accent-amber:      #F5C271;
+    --accent-red:        #F28A8A;
+
+    --input-radius:  8px;
+    --button-radius: 6px;
+    --panel-radius:  14px;
+    --tile-radius:   8px;
+
+    --font-sans:    'Switzer', ui-sans-serif, system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+    --font-display: 'Fraunces', 'Switzer', serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 15px; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--app-bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 64px 48px 96px;
+    line-height: 1.45;
+    /* warm grain */
+    background-image:
+      radial-gradient(1200px 800px at 80% -100px, rgba(94, 161, 255, 0.04), transparent 60%),
+      radial-gradient(900px 600px at -10% 100%, rgba(242, 138, 138, 0.025), transparent 70%);
+    background-repeat: no-repeat;
+  }
+
+  /* ---------- Page header ---------- */
+  .page-header { max-width: 1080px; margin: 0 auto 56px; }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+  .page-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 44px;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    color: var(--text-primary);
+  }
+  .page-title em {
+    font-style: italic;
+    color: var(--accent-blue);
+    font-feature-settings: "ss01" 1;
+  }
+  .page-subtitle {
+    margin-top: 14px;
+    color: var(--text-secondary);
+    max-width: 60ch;
+  }
+
+  /* ---------- Stage frame ---------- */
+  .stage {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: grid;
+    gap: 64px;
+  }
+  .stage-section {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 28px;
+  }
+  .stage-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .stage-label::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background: var(--accent-blue);
+    border-radius: 50%;
+    box-shadow: 0 0 12px 2px rgba(94, 161, 255, 0.4);
+  }
+  .stage-label .stage-label-counter {
+    color: var(--border-strong);
+    margin-left: auto;
+    letter-spacing: 0.12em;
+  }
+
+  /* ---------- Composer (idle / loading) ---------- */
+  .workspace-frame {
+    background: var(--panel-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--panel-radius);
+    padding: 22px 22px 18px;
+    position: relative;
+  }
+  .workspace-context {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+  .workspace-context .dot {
+    width: 6px; height: 6px;
+    background: var(--accent-green);
+    border-radius: 50%;
+  }
+  .workspace-context .sep { opacity: 0.4; }
+
+  .composer-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .composer-button {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--button-radius);
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: background .14s ease, border-color .14s ease, color .14s ease;
+    flex-shrink: 0;
+  }
+  .composer-button:hover {
+    background: var(--message-hover);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+  .composer-button svg { width: 18px; height: 18px; }
+
+  .composer-field {
+    flex: 1;
+    background: var(--panel-alt);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--input-radius);
+    padding: 11px 16px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    color: var(--text-primary);
+    position: relative;
+    transition: border-color .2s ease;
+  }
+  .composer-field-placeholder {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .composer-field-typed {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+  .composer-field-typed .caret {
+    display: inline-block;
+    width: 1px;
+    height: 16px;
+    background: var(--accent-blue);
+    margin-left: 2px;
+    vertical-align: middle;
+    animation: caret 1s steps(1) infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  .composer-hint {
+    margin-top: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .composer-hint kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--panel-overlay);
+    border: 1px solid var(--border-subtle);
+    border-bottom-width: 2px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+  }
+
+  /* ---------- Dropdown ---------- */
+  .composer-with-dropdown {
+    position: relative;
+  }
+  .slash-dropdown {
+    position: absolute;
+    left: 50px; /* aligns with text field, past attach button */
+    right: 110px; /* leaves room past send */
+    bottom: calc(100% + 8px);
+    background: var(--panel-overlay);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--panel-radius);
+    box-shadow:
+      0 24px 48px -16px rgba(0, 0, 0, 0.6),
+      0 8px 16px -8px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+    overflow: hidden;
+  }
+  .slash-dropdown-header {
+    padding: 12px 18px 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .slash-dropdown-header .filter-count {
+    color: var(--border-strong);
+    letter-spacing: 0.12em;
+  }
+  .slash-dropdown-list { padding: 6px; }
+  .slash-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 6px;
+    position: relative;
+    cursor: pointer;
+    transition: background .12s ease;
+  }
+  .slash-item.is-selected {
+    background: var(--accent-blue-soft);
+  }
+  .slash-item.is-selected::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 8px; bottom: 8px;
+    width: 2px;
+    background: var(--accent-blue);
+    border-radius: 0 2px 2px 0;
+  }
+  .slash-item-name {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+  .slash-item-name .slash {
+    color: var(--accent-blue);
+    margin-right: 1px;
+  }
+  .slash-item-desc {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.35;
+  }
+  .slash-item-shortcut {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+  }
+  .slash-dropdown-footer {
+    display: flex;
+    gap: 18px;
+    padding: 10px 18px;
+    border-top: 1px solid var(--border-subtle);
+    background: rgba(0, 0, 0, 0.15);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+  .slash-dropdown-footer .grp {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .slash-dropdown-footer kbd {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border-subtle);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--text-secondary);
+  }
+
+  /* ---------- Send button ---------- */
+  .send-cluster {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .send-button {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--button-radius);
+    background: var(--accent-blue);
+    color: #0B1320;
+    border: none;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background .14s ease, transform .12s ease;
+  }
+  .send-button:hover { background: #82B5FF; }
+  .send-button svg { width: 16px; height: 16px; }
+  .send-button.is-disabled {
+    background: var(--panel-overlay);
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+
+  /* ---------- Loading state ---------- */
+  .composer-field.is-loading {
+    border-color: var(--accent-blue);
+    animation: borderBreathe 2.4s ease-in-out infinite;
+    overflow: hidden;
+  }
+  .composer-field.is-loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(94, 161, 255, 0.07) 50%,
+      transparent
+    );
+    transform: translateX(-100%);
+    animation: shimmer 2.2s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes borderBreathe {
+    0%, 100% { border-color: rgba(94, 161, 255, 0.55); box-shadow: 0 0 0 1px rgba(94, 161, 255, 0.15); }
+    50%      { border-color: rgba(94, 161, 255, 0.9);  box-shadow: 0 0 0 1px rgba(94, 161, 255, 0.30); }
+  }
+  @keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%);  }
+  }
+  .composer-field.is-loading .composer-field-typed {
+    color: var(--text-secondary);
+  }
+  .composer-field.is-loading .composer-field-typed .slash-prefix {
+    color: var(--accent-blue);
+  }
+
+  .send-button.is-loading {
+    background: var(--panel-overlay);
+    border: 1px solid var(--accent-blue);
+    color: var(--accent-blue);
+  }
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid rgba(94, 161, 255, 0.3);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Pensive "recollecting" status row */
+  .recollecting {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border-subtle);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .recollecting .glyph {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 17px;
+    color: var(--accent-blue);
+    line-height: 1;
+  }
+  .recollecting .label {
+    letter-spacing: 0.01em;
+  }
+  .recollecting .dots { display: inline-flex; gap: 3px; margin-left: 1px; }
+  .recollecting .dots span {
+    width: 3px; height: 3px;
+    background: var(--accent-blue);
+    border-radius: 50%;
+    opacity: 0.3;
+    animation: dotPulse 1.4s ease-in-out infinite;
+  }
+  .recollecting .dots span:nth-child(2) { animation-delay: .2s; }
+  .recollecting .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes dotPulse {
+    0%, 100% { opacity: 0.25; transform: translateY(0); }
+    40%      { opacity: 1;    transform: translateY(-1px); }
+  }
+  .recollecting .meta {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* ---------- SnackBars ---------- */
+  .snackbar-stack {
+    display: grid;
+    gap: 14px;
+    max-width: 720px;
+  }
+  .snackbar {
+    background: var(--panel-overlay);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--input-radius);
+    padding: 14px 18px 14px 22px;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+    box-shadow:
+      0 16px 32px -16px rgba(0, 0, 0, 0.5),
+      0 4px 8px -4px rgba(0, 0, 0, 0.4);
+  }
+  .snackbar::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 10px; bottom: 10px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+  }
+  .snackbar--success::before { background: var(--accent-green); box-shadow: 0 0 16px rgba(118, 211, 155, 0.4); }
+  .snackbar--locked::before  { background: var(--accent-amber); box-shadow: 0 0 16px rgba(245, 194, 113, 0.4); }
+  .snackbar--error::before   { background: var(--accent-red);   box-shadow: 0 0 16px rgba(242, 138, 138, 0.4); }
+
+  .snackbar-body { min-width: 0; }
+  .snackbar-headline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    letter-spacing: -0.005em;
+  }
+  .snackbar-headline-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .snackbar--success .snackbar-headline-tag { background: rgba(118, 211, 155, 0.13); color: var(--accent-green); }
+  .snackbar--locked  .snackbar-headline-tag { background: rgba(245, 194, 113, 0.13); color: var(--accent-amber); }
+  .snackbar--error   .snackbar-headline-tag { background: rgba(242, 138, 138, 0.13); color: var(--accent-red); }
+
+  .snackbar-secondary {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+  .snackbar-preview {
+    margin-top: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-subtle);
+    border-left: 2px solid var(--accent-green);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 13.5px;
+    color: var(--text-primary);
+    line-height: 1.55;
+  }
+  .snackbar-detail {
+    margin-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    word-break: break-all;
+  }
+
+  .snackbar-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .snackbar-actions button {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+  }
+  .snackbar-actions button:hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong);
+  }
+
+  /* ---------- Notes ---------- */
+  .notes {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: var(--panel-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--tile-radius);
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+  .notes strong {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .notes ul { padding-left: 18px; }
+  .notes li { margin: 2px 0; }
+  .notes code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--panel-overlay);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent-blue);
+  }
+
+  /* small bottom flourish */
+  .colophon {
+    max-width: 1080px;
+    margin: 80px auto 0;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--border-strong);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 22px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .colophon em { font-family: var(--font-display); font-style: italic; text-transform: none; letter-spacing: 0; color: var(--text-muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <div class="eyebrow">Manfred · Composer Design · Slash Commands</div>
+  <h1 class="page-title">A quiet way to ask the agent <em>to remember</em>.</h1>
+  <p class="page-subtitle">
+    Slash commands let you trigger out-of-band actions without sending a message to the LLM.
+    <code style="font-family:var(--font-mono);font-size:12.5px;color:var(--accent-blue);">/summarize</code>
+    asks Manfred to fold the recent conversation into long-term observations.
+    The call is synchronous — we wait, we show, we get out of the way.
+  </p>
+</header>
+
+<main class="stage">
+
+  <!-- ============================== 1. Idle ============================== -->
+  <section class="stage-section">
+    <div class="stage-label">
+      Idle composer · resting state
+      <span class="stage-label-counter">01 / 04</span>
+    </div>
+
+    <div class="workspace-frame">
+      <div class="workspace-context">
+        <span class="dot"></span>
+        <span>session · long-research</span>
+        <span class="sep">·</span>
+        <span>manfred</span>
+        <span class="sep">·</span>
+        <span>34 messages · 27 408 tokens</span>
+      </div>
+
+      <div class="composer-row">
+        <button class="composer-button" aria-label="Attach">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+
+        <div class="composer-field">
+          <span class="composer-field-placeholder">Message Manfred, or press / for commands…</span>
+        </div>
+
+        <div class="send-cluster">
+          <button class="send-button is-disabled" aria-label="Send" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="composer-hint">
+        <kbd>/</kbd> to open commands
+        <span style="opacity:.4;margin:0 4px;">·</span>
+        <kbd>Shift</kbd>+<kbd>Enter</kbd> newline
+        <span style="opacity:.4;margin:0 4px;">·</span>
+        <kbd>Enter</kbd> send
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 2. Dropdown open ============================== -->
+  <section class="stage-section">
+    <div class="stage-label">
+      Slash-command palette · open
+      <span class="stage-label-counter">02 / 04</span>
+    </div>
+
+    <div class="workspace-frame">
+      <div class="workspace-context">
+        <span class="dot"></span>
+        <span>session · long-research</span>
+        <span class="sep">·</span>
+        <span>manfred</span>
+      </div>
+
+      <div class="composer-row composer-with-dropdown">
+        <!-- dropdown -->
+        <div class="slash-dropdown" role="listbox" aria-label="Slash commands">
+          <div class="slash-dropdown-header">
+            <span>commands</span>
+            <span class="filter-count">1 match</span>
+          </div>
+
+          <div class="slash-dropdown-list">
+            <div class="slash-item is-selected" role="option" aria-selected="true">
+              <span class="slash-item-name"><span class="slash">/</span>summarize</span>
+              <span class="slash-item-desc">Fold the current conversation into long-term observations.</span>
+              <span class="slash-item-shortcut">↵</span>
+            </div>
+          </div>
+
+          <div class="slash-dropdown-footer">
+            <span class="grp"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+            <span class="grp"><kbd>↵</kbd> run</span>
+            <span class="grp"><kbd>esc</kbd> close</span>
+          </div>
+        </div>
+
+        <button class="composer-button" aria-label="Attach">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+
+        <div class="composer-field">
+          <span class="composer-field-typed">/summarize<span class="caret"></span></span>
+        </div>
+
+        <div class="send-cluster">
+          <button class="send-button is-disabled" aria-label="Send" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Behavior</strong>
+      <ul>
+        <li>Dropdown appears as soon as the field contains <code>/</code>. List filters live by name prefix.</li>
+        <li><code>↑</code>/<code>↓</code> move the selection; <code>Enter</code> runs the selected command and consumes the keystroke (does not send a message).</li>
+        <li><code>Esc</code> closes the dropdown but leaves the text. Typing anything that no longer matches a command also closes it; pressing <code>Enter</code> then sends as a normal message.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================== 3. Loading ============================== -->
+  <section class="stage-section">
+    <div class="stage-label">
+      Loading state · /summarize in flight
+      <span class="stage-label-counter">03 / 04</span>
+    </div>
+
+    <div class="workspace-frame">
+      <div class="workspace-context">
+        <span class="dot" style="background:var(--accent-blue);box-shadow:0 0 10px rgba(94,161,255,0.5);"></span>
+        <span>session · long-research</span>
+        <span class="sep">·</span>
+        <span>manfred</span>
+      </div>
+
+      <div class="composer-row">
+        <button class="composer-button" aria-label="Attach" style="opacity:.4;pointer-events:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+
+        <div class="composer-field is-loading" aria-busy="true">
+          <span class="composer-field-typed">
+            <span class="slash-prefix">/</span>summarize
+          </span>
+        </div>
+
+        <div class="send-cluster">
+          <button class="send-button is-loading" aria-label="Summarizing" disabled>
+            <span class="spinner"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="recollecting">
+        <span class="glyph">~</span>
+        <span class="label">Recollecting<span class="dots"><span></span><span></span><span></span></span></span>
+        <span class="meta">may take ~20s · do not refresh</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Why this and not a generic spinner</strong>
+      <ul>
+        <li>The field's border breathes slowly (2.4s ease cycle) so the user can tell the system is alive without it feeling like a hung progress bar.</li>
+        <li>Input and attach are dimmed and locked. The send button morphs into a spinner — same shape, different content, no layout jump.</li>
+        <li>A dashed divider opens beneath the field with a one-line status: italic <em>~</em> mark + "Recollecting" + animated dots + a quiet meta line setting the expectation that this is a 20-second operation, not a 200ms one.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================== 4. SnackBars ============================== -->
+  <section class="stage-section">
+    <div class="stage-label">
+      Result feedback · SnackBar variants
+      <span class="stage-label-counter">04 / 04</span>
+    </div>
+
+    <div class="snackbar-stack">
+
+      <!-- SUCCESS -->
+      <div class="snackbar snackbar--success" role="status">
+        <div class="snackbar-body">
+          <div class="snackbar-headline">
+            <span class="snackbar-headline-tag">summarized</span>
+            <span>Observations saved</span>
+          </div>
+          <div class="snackbar-secondary">
+            Manfred folded 34 messages into long-term memory.
+          </div>
+          <div class="snackbar-preview">
+            "User is building a Flutter chat UI for an agent runtime called Manfred; today they reworked the observational memory contract — endpoint is synchronous, no transcript items, slash-command driven…"
+          </div>
+        </div>
+        <div class="snackbar-actions">
+          <button>view</button>
+          <button>dismiss</button>
+        </div>
+      </div>
+
+      <!-- LOCKED -->
+      <div class="snackbar snackbar--locked" role="status">
+        <div class="snackbar-body">
+          <div class="snackbar-headline">
+            <span class="snackbar-headline-tag">already running</span>
+            <span>Another observer has the lock</span>
+          </div>
+          <div class="snackbar-secondary">
+            A summary is in progress for <code style="font-family:var(--font-mono);font-size:12px;color:var(--accent-amber);">manfred</code>. It will finish on its own — try again in a minute if you still want a fresh one.
+          </div>
+        </div>
+        <div class="snackbar-actions">
+          <button>dismiss</button>
+        </div>
+      </div>
+
+      <!-- ERROR -->
+      <div class="snackbar snackbar--error" role="alert">
+        <div class="snackbar-body">
+          <div class="snackbar-headline">
+            <span class="snackbar-headline-tag">failed</span>
+            <span>Couldn't save observations</span>
+          </div>
+          <div class="snackbar-secondary">
+            The observer ran into an error. Your conversation is intact; nothing was written.
+          </div>
+          <div class="snackbar-detail">
+            detail: openrouter timeout after 30s · request_id 7c2a…1f9b
+          </div>
+        </div>
+        <div class="snackbar-actions">
+          <button>retry</button>
+          <button>dismiss</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Status taxonomy</strong>
+      <ul>
+        <li><code>200 success</code> → green bar, headline + italic preview block (the only variant that exposes BE content directly).</li>
+        <li><code>200 locked</code> → amber bar, suggest retry. No retry button (user just waits).</li>
+        <li><code>200 below_threshold</code> → amber, "Not enough new context yet." (variant not pictured — same shape as <em>locked</em>.)</li>
+        <li><code>200 error</code> → red bar, retry button, monospaced detail line.</li>
+        <li><code>204 no_unobserved</code> → no SnackBar. Composer returns to idle silently.</li>
+        <li><code>404</code> → red bar, "Session not found." No retry.</li>
+        <li><code>503</code> → red bar, "Summaries are disabled for this build." Command hidden from the palette afterwards (until reload).</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer class="colophon">
+  <span>Manfred · observational-memory · v0.1</span>
+  <em>"the agent pauses, then remembers."</em>
+  <span>04 states · 1 command · 0 transcript items</span>
+</footer>
+
+</body>
+</html>

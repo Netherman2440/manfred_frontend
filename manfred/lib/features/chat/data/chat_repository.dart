@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -10,6 +11,7 @@ import '../domain/chat_mutation_result.dart';
 import '../domain/chat_stream_event.dart';
 import '../domain/pending_attachment.dart';
 import '../domain/queued_message.dart';
+import '../domain/summarize_result.dart';
 import 'chat_dto.dart';
 
 abstract class ChatRepository {
@@ -35,6 +37,7 @@ abstract class ChatRepository {
     required String message,
   });
   Future<ChatMutationResult> cancelRun({required String sessionId});
+  Future<SummarizeResult> summarize({required String sessionId});
   Future<QueuedMessage> queueMessage({required QueuedMessage message});
   Stream<ChatStreamEvent> editMessageStream({
     required String sessionId,
@@ -153,6 +156,58 @@ class HttpChatRepository implements ChatRepository {
       body: const <String, Object?>{},
     );
     return ChatMutationResultDto.fromJson(payload).toDomain();
+  }
+
+  @override
+  Future<SummarizeResult> summarize({required String sessionId}) async {
+    try {
+      final response = await _apiClient
+          .sendJsonAllowErrors(
+            'POST',
+            '/chat/sessions/$sessionId/summarize',
+            body: const <String, Object?>{},
+          )
+          .timeout(const Duration(seconds: 90));
+
+      switch (response.statusCode) {
+        case 204:
+          return const SummarizeNoUnobserved();
+        case 404:
+          return const SummarizeNotFound();
+        case 503:
+          return const SummarizeFeatureDisabled();
+        case 200:
+          final status = response.body['status'];
+          if (status is! String) {
+            return const SummarizeTransportError('missing_status');
+          }
+          switch (status) {
+            case 'success':
+              final preview = response.body['observations_preview'];
+              return SummarizeSuccess(preview is String ? preview : '');
+            case 'locked':
+              return const SummarizeLocked();
+            case 'below_threshold':
+              final detail = response.body['detail'];
+              return SummarizeBelowThreshold(detail is String ? detail : null);
+            case 'error':
+              final detail = response.body['detail'];
+              return SummarizeError(detail is String ? detail : null);
+            case 'no_unobserved':
+              return const SummarizeNoUnobserved();
+            default:
+              return SummarizeTransportError('unknown_status:$status');
+          }
+        default:
+          return SummarizeTransportError(
+            'unexpected_status:${response.statusCode}',
+          );
+      }
+    } on TimeoutException {
+      return const SummarizeTransportError('timeout');
+    } catch (error) {
+      return SummarizeTransportError(error.toString());
+    }
   }
 
   @override

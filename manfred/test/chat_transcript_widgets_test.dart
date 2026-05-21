@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manfred/ui/mock/manfred_mock_data.dart';
 import 'package:manfred/ui/screens/chat_workspace/columns/additional_column.dart';
@@ -13,7 +14,8 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(
+        child: MaterialApp(
         theme: ManfredTheme.dark(),
         home: Scaffold(
           body: ConversationList(
@@ -33,6 +35,7 @@ void main() {
             ],
           ),
         ),
+      ),
       ),
     );
 
@@ -112,7 +115,8 @@ void main() {
     String? selectedThreadId;
 
     await tester.pumpWidget(
-      MaterialApp(
+      ProviderScope(
+        child: MaterialApp(
         theme: ManfredTheme.dark(),
         home: Scaffold(
           body: StatefulBuilder(
@@ -154,15 +158,16 @@ void main() {
           ),
         ),
       ),
+      ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Artifacts'), findsOneWidget);
     expect(find.textContaining('Uzupełnij kontekst biznesowy.'), findsNothing);
 
     await tester.tap(find.text('@research').last);
     await tester.pumpAndSettle();
 
+    expect(find.text('Artifacts'), findsOneWidget);
     expect(
       find.textContaining('Uzupełnij kontekst biznesowy.'),
       findsOneWidget,

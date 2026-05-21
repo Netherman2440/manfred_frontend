@@ -18,6 +18,11 @@ import '../domain/composer_state.dart';
 import '../domain/edit_target.dart';
 import '../domain/pending_attachment.dart';
 import '../domain/queued_message.dart';
+import '../domain/slash_command.dart';
+import '../domain/slash_command_matcher.dart';
+import '../domain/summarize_result.dart';
+import 'feature_disabled_summarize_provider.dart';
+import 'summarize_snackbar_emitter.dart';
 
 class ComposerController extends Notifier<ComposerState> {
   @override
@@ -140,6 +145,11 @@ class ComposerController extends Notifier<ComposerState> {
     }
 
     final trimmedDraft = state.draft.trim();
+    final command = resolveCommand(trimmedDraft);
+    if (command != null && _isSlashCommandEnabledForCurrentSession(command)) {
+      await _runSlashCommand(command);
+      return;
+    }
     if (trimmedDraft.isEmpty) {
       return;
     }
@@ -259,6 +269,110 @@ class ComposerController extends Notifier<ComposerState> {
         errorMessage: 'Nie udało się zatrzymać runu.',
       );
     }
+  }
+
+  /// Returns `true` if [cmd] should be executed as a slash command.
+  ///
+  /// A command is considered inactive (and the draft should fall through to
+  /// the normal send path) when the current session has been sticky-disabled
+  /// for that command — e.g. the backend already returned 503 on `/summarize`.
+  bool _isSlashCommandEnabledForCurrentSession(SlashCommand cmd) {
+    assert(
+      cmd.name == 'summarize',
+      'unknown slash command "${cmd.name}" — registry must only contain '
+      'commands the controller knows how to dispatch',
+    );
+    final sessionId = ref.read(selectedSessionProvider).sessionId;
+    if (sessionId == null || sessionId.isEmpty) {
+      return true;
+    }
+    return !ref.read(featureDisabledSummarizeProvider).contains(sessionId);
+  }
+
+  Future<void> _runSlashCommand(SlashCommand cmd) async {
+    assert(
+      cmd.name == 'summarize',
+      'unknown slash command "${cmd.name}" — registry must only contain '
+      'commands the controller knows how to dispatch',
+    );
+
+    if (state.isStreaming) {
+      state = state.copyWith(
+        errorMessage:
+            'Zatrzymaj aktywny stream przed wywołaniem /summarize.',
+      );
+      return;
+    }
+
+    if (state.runningCommand != null) {
+      return;
+    }
+
+    final sessionId = ref.read(selectedSessionProvider).sessionId;
+    if (sessionId == null || sessionId.isEmpty) {
+      state = state.copyWith(
+        errorMessage: 'Otwórz sesję, zanim wywołasz /summarize.',
+      );
+      return;
+    }
+    final originalSessionId = sessionId;
+
+    state = state.copyWith(
+      runningCommand: 'summarize',
+      draft: '',
+      clearErrorMessage: true,
+    );
+
+    SummarizeResult result;
+    try {
+      try {
+        result = await ref
+            .read(chatRepositoryProvider)
+            .summarize(sessionId: sessionId);
+      } catch (error) {
+        // Defensive guard: the repo claims to swallow all errors into a
+        // SummarizeTransportError, but if that contract ever breaks we still
+        // want to surface the failure and clear the loading state.
+        debugPrint(
+          '[composer.summarize.error] message=${error.toString()}',
+        );
+        result = SummarizeTransportError(error.toString());
+      }
+
+      if (result is SummarizeFeatureDisabled) {
+        ref
+            .read(featureDisabledSummarizeProvider.notifier)
+            .update((set) => <String>{...set, sessionId});
+      }
+
+      // Spec T3: 204 no_unobserved → cichy no-op, composer wraca do idle bez
+      // SnackBaru. The emit is suppressed at the controller level rather than
+      // pushed into the emitter so renderers stay UX-agnostic.
+      if (result is! SummarizeNoUnobserved) {
+        ref
+            .read(summarizeSnackbarEmitterProvider)
+            .show(
+              result,
+              onRetry: result is SummarizeError
+                  ? () => _retrySlashCommand(cmd, originalSessionId)
+                  : null,
+            );
+      }
+    } finally {
+      state = state.copyWith(clearRunningCommand: true);
+    }
+  }
+
+  Future<void> _retrySlashCommand(
+    SlashCommand cmd,
+    String originalSessionId,
+  ) async {
+    final currentSessionId =
+        ref.read(selectedSessionProvider).sessionId ?? '';
+    if (currentSessionId != originalSessionId) {
+      return;
+    }
+    await _runSlashCommand(cmd);
   }
 
   Future<void> _queuePendingMessage({

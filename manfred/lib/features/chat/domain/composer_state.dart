@@ -19,6 +19,7 @@ class ComposerState {
     required this.attachments,
     required this.editTarget,
     required this.pendingQueuedMessages,
+    required this.runningCommand,
   });
 
   const ComposerState.initial()
@@ -36,7 +37,8 @@ class ComposerState {
       streamingStartedAt = null,
       attachments = const <PendingAttachment>[],
       editTarget = null,
-      pendingQueuedMessages = const <QueuedMessage>[];
+      pendingQueuedMessages = const <QueuedMessage>[],
+      runningCommand = null;
 
   final String draft;
   final bool isSending;
@@ -53,8 +55,11 @@ class ComposerState {
   final List<PendingAttachment> attachments;
   final EditTarget? editTarget;
   final List<QueuedMessage> pendingQueuedMessages;
+  final String? runningCommand;
 
-  bool get isBusy => isSending || isStopping;
+  bool get isBusy => isSending || isStopping || isRunningCommand;
+
+  bool get isRunningCommand => runningCommand != null;
 
   bool get canStop => isStreaming && activeSessionId != null && !isStopping;
 
@@ -80,6 +85,7 @@ class ComposerState {
     List<PendingAttachment>? attachments,
     EditTarget? editTarget,
     List<QueuedMessage>? pendingQueuedMessages,
+    String? runningCommand,
     bool clearErrorMessage = false,
     bool clearPendingUserMessage = false,
     bool clearPendingUserAttachments = false,
@@ -87,6 +93,7 @@ class ComposerState {
     bool clearActiveRun = false,
     bool clearAttachments = false,
     bool clearEditTarget = false,
+    bool clearRunningCommand = false,
   }) {
     return ComposerState(
       draft: draft ?? this.draft,
@@ -123,6 +130,9 @@ class ComposerState {
       editTarget: clearEditTarget ? null : editTarget ?? this.editTarget,
       pendingQueuedMessages:
           pendingQueuedMessages ?? this.pendingQueuedMessages,
+      runningCommand: clearRunningCommand
+          ? null
+          : runningCommand ?? this.runningCommand,
     );
   }
 }

@@ -81,6 +81,35 @@ class ManfredApiClient {
     return _decodeResponse(flattened);
   }
 
+  /// Sends a JSON request and returns `(statusCode, body)` without
+  /// throwing on non-2xx — the caller is expected to branch on the
+  /// status code itself.
+  ///
+  /// `body` is `{}` when the response is empty (e.g. 204 No Content)
+  /// or when JSON parsing fails. Use this for endpoints whose 2xx
+  /// payload encodes a "status" field that the caller must inspect
+  /// regardless of HTTP code (e.g. `/summarize`).
+  Future<({int statusCode, Map<String, dynamic> body})> sendJsonAllowErrors(
+    String method,
+    String path, {
+    required Map<String, Object?> body,
+  }) async {
+    final request = http.Request(method, _buildUri(path));
+    request.headers.addAll(const <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    });
+    request.body = jsonEncode(body);
+
+    final response = await _client.send(request);
+    final flattened = await http.Response.fromStream(response);
+    final decoded = _tryDecodeJson(flattened.body.trim());
+    final mapBody = decoded is Map<String, dynamic>
+        ? decoded
+        : const <String, dynamic>{};
+    return (statusCode: flattened.statusCode, body: mapBody);
+  }
+
   Stream<SseMessage> postSse(
     String path, {
     required Map<String, Object?> body,
