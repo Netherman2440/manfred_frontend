@@ -61,6 +61,16 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
       return KeyEventResult.ignored;
     }
 
+    final isEnter = event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter;
+
+    // Shift+Enter inserts a literal newline at the cursor and never sends or
+    // resolves a slash command — regardless of whether the palette is open.
+    if (isEnter && HardwareKeyboard.instance.isShiftPressed) {
+      _insertNewlineAtCursor();
+      return KeyEventResult.handled;
+    }
+
     final composerState = ref.read(composerControllerProvider);
     final draft = composerState.draft;
     final paletteOpen = !_paletteDismissed &&
@@ -106,6 +116,20 @@ class _ComposerMockState extends ConsumerState<ComposerMock> {
       return KeyEventResult.ignored;
     }
     return KeyEventResult.ignored;
+  }
+
+  void _insertNewlineAtCursor() {
+    final value = _controller.value;
+    final selection = value.selection;
+    final text = value.text;
+    final start = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+    final newText = text.replaceRange(start, end, '\n');
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + 1),
+    );
+    ref.read(composerControllerProvider.notifier).updateDraft(newText);
   }
 
   @override
