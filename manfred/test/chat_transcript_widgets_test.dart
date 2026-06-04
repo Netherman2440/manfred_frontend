@@ -254,7 +254,10 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('Save'), findsNothing);
     expect(find.text('Cancel'), findsNothing);
-    expect(find.text('Esc anuluje, Enter zapisuje'), findsOneWidget);
+    expect(
+      find.text('Esc anuluje, Enter zapisuje, Shift+Enter nowa linia'),
+      findsOneWidget,
+    );
 
     await tester.enterText(find.byType(TextField), 'Nowa treść');
     await tester.pumpAndSettle();

@@ -207,6 +207,21 @@ class _InlineEditor extends StatelessWidget {
             onSave?.call();
           }
         },
+        const SingleActivator(LogicalKeyboardKey.enter, shift: true): () {
+          if (isSaving) {
+            return;
+          }
+          final value = controller.value;
+          final selection = value.selection;
+          final start = selection.isValid ? selection.start : value.text.length;
+          final end = selection.isValid ? selection.end : value.text.length;
+          final newText = value.text.replaceRange(start, end, '\n');
+          controller.value = TextEditingValue(
+            text: newText,
+            selection: TextSelection.collapsed(offset: start + 1),
+          );
+          onChanged?.call(newText);
+        },
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,7 +262,9 @@ class _InlineEditor extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            isSaving ? 'Zapisywanie...' : 'Esc anuluje, Enter zapisuje',
+            isSaving
+                ? 'Zapisywanie...'
+                : 'Esc anuluje, Enter zapisuje, Shift+Enter nowa linia',
             style: theme.textTheme.bodySmall?.copyWith(
               color: ManfredColors.textSecondary,
             ),
