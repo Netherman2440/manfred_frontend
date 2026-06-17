@@ -358,6 +358,58 @@ class SessionDetailsOverlayController
     );
   }
 
+  void upsertToolResult({
+    required String sessionId,
+    required String callId,
+    required String name,
+    required Object? toolResult,
+    required bool isError,
+    required DateTime updatedAt,
+  }) {
+    final current = state[sessionId];
+    if (current == null) {
+      return;
+    }
+
+    final items = List<SessionItem>.from(current.items);
+    final existingIndex = _findToolResultIndex(items, callId);
+    if (existingIndex == null) {
+      final nextSequence = _nextSequence(items);
+      items.add(
+        SessionToolResultItem(
+          id: 'local-tool-result-$sessionId-$callId',
+          agentId: current.rootAgent.id,
+          sequence: nextSequence,
+          createdAt: updatedAt,
+          callId: callId,
+          name: name,
+          toolResult: toolResult,
+          isError: isError,
+        ),
+      );
+    } else {
+      final existingItem = items[existingIndex] as SessionToolResultItem;
+      items[existingIndex] = SessionToolResultItem(
+        id: existingItem.id,
+        agentId: existingItem.agentId,
+        sequence: existingItem.sequence,
+        createdAt: existingItem.createdAt,
+        callId: existingItem.callId,
+        name: name,
+        toolResult: toolResult,
+        isError: isError,
+      );
+    }
+
+    replace(
+      current.copyWith(
+        session: current.session.copyWith(updatedAt: updatedAt),
+        rootAgent: current.rootAgent.copyWith(status: 'running'),
+        items: items,
+      ),
+    );
+  }
+
   void syncStreamDone({
     required String sessionId,
     required DateTime finishedAt,
@@ -579,6 +631,17 @@ class SessionDetailsOverlayController
     for (var index = 0; index < items.length; index += 1) {
       final item = items[index];
       if (item is SessionToolCallItem && item.callId == callId) {
+        return index;
+      }
+    }
+
+    return null;
+  }
+
+  int? _findToolResultIndex(List<SessionItem> items, String callId) {
+    for (var index = 0; index < items.length; index += 1) {
+      final item = items[index];
+      if (item is SessionToolResultItem && item.callId == callId) {
         return index;
       }
     }

@@ -691,6 +691,46 @@ class ComposerController extends Notifier<ComposerState> {
                     updatedAt: DateTime.now(),
                   );
             }
+          case ChatToolCalledStreamEvent():
+            // Tool call item is already created/updated via function_call_done;
+            // tool.called carries no extra render state, so it is a no-op here.
+            break;
+          case ChatToolCompletedStreamEvent(
+            :final callId,
+            :final name,
+            :final toolResult,
+            :final isError,
+          ):
+            if (resolvedSessionId != null && resolvedSessionId.isNotEmpty) {
+              ref
+                  .read(sessionDetailsOverlayProvider.notifier)
+                  .upsertToolResult(
+                    sessionId: resolvedSessionId,
+                    callId: callId,
+                    name: name,
+                    toolResult: toolResult,
+                    isError: isError,
+                    updatedAt: DateTime.now(),
+                  );
+            }
+          case ChatToolFailedStreamEvent(
+            :final callId,
+            :final name,
+            :final toolResult,
+            :final isError,
+          ):
+            if (resolvedSessionId != null && resolvedSessionId.isNotEmpty) {
+              ref
+                  .read(sessionDetailsOverlayProvider.notifier)
+                  .upsertToolResult(
+                    sessionId: resolvedSessionId,
+                    callId: callId,
+                    name: name,
+                    toolResult: toolResult,
+                    isError: isError,
+                    updatedAt: DateTime.now(),
+                  );
+            }
           case ChatErrorStreamEvent(:final error):
             if (!state.isStopping) {
               streamError = error;

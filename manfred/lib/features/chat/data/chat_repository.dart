@@ -523,6 +523,83 @@ class HttpChatRepository implements ChatRepository {
           );
         }
         break;
+      case 'tool.called':
+        final callId = payload['call_id'];
+        final name = payload['name'];
+        if (callId is String &&
+            callId.isNotEmpty &&
+            name is String &&
+            name.isNotEmpty) {
+          _logParsedChatStreamEvent(
+            eventName: event.event,
+            details: () => 'call_id=$callId name=$name',
+          );
+          yield ChatToolCalledStreamEvent(
+            callId: callId,
+            name: name,
+            agentId: payload['agent_id'] is String
+                ? payload['agent_id'] as String
+                : null,
+            depth: payload['depth'] is int ? payload['depth'] as int : 0,
+            arguments: payload['arguments'],
+          );
+        } else {
+          _logIgnoredChatStreamEvent(
+            eventName: event.event,
+            reason: 'missing call_id or name',
+            payload: payload,
+          );
+        }
+        break;
+      case 'tool.completed':
+      case 'tool.failed':
+        final callId = payload['call_id'];
+        final name = payload['name'];
+        if (callId is String &&
+            callId.isNotEmpty &&
+            name is String &&
+            name.isNotEmpty) {
+          final isError = payload['is_error'] == true;
+          final agentId = payload['agent_id'] is String
+              ? payload['agent_id'] as String
+              : null;
+          final depth = payload['depth'] is int ? payload['depth'] as int : 0;
+          final durationMs =
+              payload['duration_ms'] is int ? payload['duration_ms'] as int : 0;
+          final toolResult = payload['tool_result'];
+          _logParsedChatStreamEvent(
+            eventName: event.event,
+            details: () => 'call_id=$callId name=$name is_error=$isError',
+          );
+          if (event.event == 'tool.failed') {
+            yield ChatToolFailedStreamEvent(
+              callId: callId,
+              name: name,
+              agentId: agentId,
+              depth: depth,
+              durationMs: durationMs,
+              toolResult: toolResult,
+              isError: isError,
+            );
+          } else {
+            yield ChatToolCompletedStreamEvent(
+              callId: callId,
+              name: name,
+              agentId: agentId,
+              depth: depth,
+              durationMs: durationMs,
+              toolResult: toolResult,
+              isError: isError,
+            );
+          }
+        } else {
+          _logIgnoredChatStreamEvent(
+            eventName: event.event,
+            reason: 'missing call_id or name',
+            payload: payload,
+          );
+        }
+        break;
       case 'done':
         _logParsedChatStreamEvent(
           eventName: event.event,

@@ -48,6 +48,62 @@ class ChatFunctionCallDoneStreamEvent extends ChatStreamEvent {
   final Object? arguments;
 }
 
+class ChatToolCalledStreamEvent extends ChatStreamEvent {
+  const ChatToolCalledStreamEvent({
+    required this.callId,
+    required this.name,
+    required this.agentId,
+    required this.depth,
+    required this.arguments,
+  });
+
+  final String callId;
+  final String name;
+  final String? agentId;
+  final int depth;
+  final Object? arguments;
+}
+
+class ChatToolCompletedStreamEvent extends ChatStreamEvent {
+  const ChatToolCompletedStreamEvent({
+    required this.callId,
+    required this.name,
+    required this.agentId,
+    required this.depth,
+    required this.durationMs,
+    required this.toolResult,
+    required this.isError,
+  });
+
+  final String callId;
+  final String name;
+  final String? agentId;
+  final int depth;
+  final int durationMs;
+  final Object? toolResult;
+  final bool isError;
+}
+
+class ChatToolFailedStreamEvent extends ChatStreamEvent {
+  const ChatToolFailedStreamEvent({
+    required this.callId,
+    required this.name,
+    required this.agentId,
+    required this.depth,
+    required this.durationMs,
+    required this.toolResult,
+    required this.isError,
+  });
+
+  final String callId;
+  final String name;
+  final String? agentId;
+  final int depth;
+  final int durationMs;
+  final Object? toolResult;
+  final bool isError;
+}
+
 class ChatDoneStreamEvent extends ChatStreamEvent {
   const ChatDoneStreamEvent();
 }
